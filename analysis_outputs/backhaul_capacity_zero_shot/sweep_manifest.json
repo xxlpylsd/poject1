@@ -1,0 +1,41 @@
+{
+  "analysis": "zero-shot average backhaul-capacity sweep",
+  "trained_average_backhaul_gbps": 0.6,
+  "capacity_variation_gbps": 0.05,
+  "capacities_gbps": [
+    0.3,
+    0.45,
+    0.6,
+    0.75,
+    1.0,
+    1.5
+  ],
+  "families": [
+    "mlp",
+    "old_mlp",
+    "tf"
+  ],
+  "baselines": [
+    "dc_rssi",
+    "sc_rssi",
+    "dc_cb_l5",
+    "sc_cb_l5",
+    "dc_jt_l2",
+    "sc_jt_l3",
+    "dc_nc",
+    "sc_nc"
+  ],
+  "seed_start": 93000,
+  "episodes": 20,
+  "horizon": 100,
+  "rssi_thresholds_env": "results/IICMSMobility/PureMobility/mappo/fronthaul_queue_native_rate_400k_mlp_s2/run1/rssi_threshold_calibration/selected_rssi_thresholds.env",
+  "scenario_digests_consistent": {
+    "300": true,
+    "450": true,
+    "600": true,
+    "750": true,
+    "1000": true,
+    "1500": true
+  },
+  "raw_result_rows": 156
+}

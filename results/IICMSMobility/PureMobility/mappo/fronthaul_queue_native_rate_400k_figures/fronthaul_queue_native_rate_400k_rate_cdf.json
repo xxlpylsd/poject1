@@ -1,0 +1,21 @@
+{
+  "tag": "fronthaul_queue_native_rate_400k",
+  "seeds": [
+    4,
+    5,
+    6
+  ],
+  "metric": "rate",
+  "requirement": 40.0,
+  "floor": 0.0,
+  "families": {
+    "mlp": {
+      "seeds": 3,
+      "mean_cdf_at_requirement": 0.021385875193369683
+    },
+    "tf_actor": {
+      "seeds": 3,
+      "mean_cdf_at_requirement": 0.008751399813175912
+    }
+  }
+}

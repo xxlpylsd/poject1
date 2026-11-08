@@ -1,0 +1,20 @@
+{
+  "tag": "fronthaul_queue_mlp_factorized_rate_400k",
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "metric": "rate",
+  "requirement": 40.0,
+  "floor": 0.0,
+  "families": {
+    "mlp": {
+      "seeds": 6,
+      "mean_cdf_at_requirement": 0.017791534802427376
+    }
+  }
+}

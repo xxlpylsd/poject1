@@ -1,0 +1,51 @@
+{
+  "tag": "comparison_6seed",
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "requirement_mbps": 40.0,
+  "learned": {},
+  "baselines": {
+    "sc_nc": {
+      "sum_rate_mbps": 526.9302098086818,
+      "cdf_at_requirement": 0.8359991024073189,
+      "cluster_policy": "static",
+      "mode": "NC"
+    },
+    "sc_cb_l5": {
+      "sum_rate_mbps": 751.8482919516847,
+      "cdf_at_requirement": 0.7756262077632453,
+      "cluster_policy": "static",
+      "mode": "CB"
+    },
+    "sc_jt_l3": {
+      "sum_rate_mbps": 1187.6531125364147,
+      "cdf_at_requirement": 0.618563211976968,
+      "cluster_policy": "static",
+      "mode": "JT"
+    },
+    "dc_nc": {
+      "sum_rate_mbps": 2281.272136039689,
+      "cdf_at_requirement": 0.04778525170588604,
+      "cluster_policy": "dynamic",
+      "mode": "NC"
+    },
+    "dc_cb_l5": {
+      "sum_rate_mbps": 3145.3249869556107,
+      "cdf_at_requirement": 0.012234359117593976,
+      "cluster_policy": "dynamic",
+      "mode": "CB"
+    },
+    "dc_jt_l2": {
+      "sum_rate_mbps": 2830.2496977557566,
+      "cdf_at_requirement": 0.06573099084739605,
+      "cluster_policy": "dynamic",
+      "mode": "JT"
+    }
+  }
+}

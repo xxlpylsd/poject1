@@ -1,0 +1,19 @@
+# Python and editor caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.idea/
+.vscode/
+
+# Local secrets
+.env
+.env.*
+*.key
+*.pem
+
+# Generated review archives
+review_bundles/
+
+# Operating-system files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,19 @@
+{
+  "tag": "fronthaul_queue_mlp_factorized_rate_400k",
+  "metric": "se",
+  "seeds": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "smoothing_radius_points": 1,
+  "families": {
+    "mlp": {
+      "seeds": 4,
+      "first_smoothed_value": 110.35297763999802,
+      "last_smoothed_value": 153.44414797625382,
+      "last_five_mean_value": 153.36171666396822
+    }
+  }
+}
