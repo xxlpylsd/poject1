@@ -13,6 +13,10 @@ except Exception:
 from utils.util import update_linear_schedule
 from runner.separated.base_runner import Runner
 from envs.env_wrappers import summarize_env_infos
+from utils.policy_evaluation import (
+    SeparatePolicyActor,
+    evaluate_episodes,
+)
 
 
 def _t2n(x):
@@ -166,7 +170,10 @@ class EnvRunner(Runner):
                     })
                 self.log_train(train_infos, total_num_steps)
 
-            if episode % self.eval_interval == 0 and self.use_eval:
+            if self.should_validate(
+                total_num_steps,
+                final=episode == episodes - 1,
+            ):
                 self.eval(total_num_steps)
 
         # 保存到 run_dir
@@ -305,107 +312,29 @@ class EnvRunner(Runner):
                 masks[:, agent_id],
             )
 
-    @torch.no_grad()
     def eval(self, total_num_steps):
-        eval_episode_rewards = []
-        eval_obs = self.eval_envs.reset()
-
-        eval_rnn_states = np.zeros(
-            (
-                self.n_eval_rollout_threads,
-                self.num_agents,
-                self.recurrent_N,
-                self.hidden_size,
-            ),
-            dtype=np.float32,
-        )
-        eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1), dtype=np.float32)
-
-        for eval_step in range(self.episode_length):
-            eval_temp_actions_env = []
-            for agent_id in range(self.num_agents):
-                self.trainer[agent_id].prep_rollout()
-                eval_action, eval_rnn_state = self.trainer[agent_id].policy.act(
-                    np.array(list(eval_obs[:, agent_id])),
-                    eval_rnn_states[:, agent_id],
-                    eval_masks[:, agent_id],
-                    deterministic=True,
-                )
-
-                eval_action = eval_action.detach().cpu().numpy()
-                # rearrange action
-                if self.eval_envs.action_space[agent_id].__class__.__name__ == "MultiDiscrete":
-                    space = self.eval_envs.action_space[agent_id]
-                    # gym.spaces.MultiDiscrete: 用 nvec
-                    if hasattr(space, "nvec"):
-                        nvec = np.asarray(space.nvec, dtype=int)
-                        for i in range(nvec.size):
-                            n_i = int(nvec[i])
-                            one = np.eye(n_i)[eval_action[:, i]]
-                            if i == 0:
-                                eval_action_env = one
-                            else:
-                                eval_action_env = np.concatenate((eval_action_env, one), axis=1)
-                    else:
-                        # 回退：自定义 MultiDiscrete（有 .high/.shape）
-                        k = space.shape if isinstance(space.shape, int) else int(space.shape[0])
-                        for i in range(k):
-                            n_i = int(space.high[i] + 1)
-                            one = np.eye(n_i)[eval_action[:, i]]
-                            if i == 0:
-                                eval_action_env = one
-                            else:
-                                eval_action_env = np.concatenate((eval_action_env, one), axis=1)
-
-                elif self.eval_envs.action_space[agent_id].__class__.__name__ == "Discrete":
-                    eval_action_env = np.squeeze(
-                        np.eye(self.eval_envs.action_space[agent_id].n)[eval_action], 1
-                    )
-                else:
-                    raise NotImplementedError
-
-                eval_temp_actions_env.append(eval_action_env)
-                eval_rnn_states[:, agent_id] = _t2n(eval_rnn_state)
-
-            # [envs, agents, dim]
-            eval_actions_env = []
-            for i in range(self.n_eval_rollout_threads):
-                eval_one_hot_action_env = []
-                for eval_temp_action_env in eval_temp_actions_env:
-                    eval_one_hot_action_env.append(eval_temp_action_env[i])
-                eval_actions_env.append(eval_one_hot_action_env)
-
-            # Obser reward and next obs
-            eval_obs, eval_rewards, eval_dones, eval_infos = self.eval_envs.step(eval_actions_env)
-            eval_episode_rewards.append(eval_rewards)
-
-            eval_rnn_states[eval_dones == True] = np.zeros(
-                ((eval_dones == True).sum(), self.recurrent_N, self.hidden_size),
-                dtype=np.float32,
+        if self.eval_envs is None or not self.eval_envs.envs:
+            raise RuntimeError(
+                "Training validation requires an evaluation environment"
             )
-            eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1), dtype=np.float32)
-            eval_masks[eval_dones == True] = np.zeros(((eval_dones == True).sum(), 1), dtype=np.float32)
-
-        eval_episode_rewards = np.array(eval_episode_rewards)
-
-        # 先按你原来的方式算每个 agent 的 episode 平均
-        per_agent_avgs = []
-        eval_train_infos = []
-        for agent_id in range(self.num_agents):
-            avg_i = float(np.mean(np.sum(eval_episode_rewards[:, :, agent_id], axis=0)))
-            eval_train_infos.append({"eval_average_episode_rewards": avg_i})
-            per_agent_avgs.append(avg_i)
-
-        # 再计算“跨 agent 的平均值”，只打印这一个
-        overall_avg = float(np.mean(per_agent_avgs))
-        print(f"eval average episode rewards (mean over {self.num_agents} agents): {overall_avg:.3f}")
-
-        # 原有日志照常写入（每个 agent 的曲线）
-        self.log_train(eval_train_infos, total_num_steps)
-
-        # 额外把“跨 agent 平均”写进 TensorBoard 方便看
-        if hasattr(self, "writter"):
-            self.writter.add_scalar("eval/avg_over_agents", overall_avg, total_num_steps)
+        for policy in self.policy:
+            policy.actor.eval()
+            policy.critic.eval()
+        eval_env = self.eval_envs.envs[0]
+        seeds = [
+            self.validation_seed_start + index
+            for index in range(self.validation_episodes)
+        ]
+        metrics = evaluate_episodes(
+            eval_env,
+            self.all_args,
+            seeds,
+            self.validation_horizon,
+            SeparatePolicyActor(
+                self.policy, self.device, self.num_agents
+            ),
+        )
+        return self.log_validation(metrics, total_num_steps)
 
     @torch.no_grad()
     def render(self):

@@ -44,8 +44,14 @@ def latest_run_dir(parent: Path, requested: str | None) -> Path:
 def load_curve(
     run_dir: Path,
     metric: str,
+    source: str = "training",
 ) -> tuple[np.ndarray, np.ndarray]:
-    path = run_dir / "logs" / "curve.csv"
+    filename = (
+        "validation_curve.csv"
+        if source == "validation"
+        else "curve.csv"
+    )
+    path = run_dir / "logs" / filename
     if not path.exists():
         raise FileNotFoundError(path)
     steps = []
@@ -53,11 +59,16 @@ def load_curve(
     with path.open("r", newline="", encoding="utf-8-sig") as stream:
         for row in csv.DictReader(stream):
             steps.append(int(row["environment_steps"]))
-            column = (
-                "sum_rate_mbps"
-                if metric == "rate"
-                else "system_sum_se_bps_hz"
-            )
+            if metric == "rate":
+                column = "sum_rate_mbps"
+            elif metric == "p05":
+                column = "p05_rate_mbps"
+            elif metric == "qos":
+                column = "qos_violation_rate"
+            elif source == "validation":
+                column = "system_se_bps_hz"
+            else:
+                column = "system_sum_se_bps_hz"
             values.append(float(row[column]))
     if not steps:
         raise ValueError(f"Empty training curve: {path}")
@@ -71,6 +82,16 @@ def centered_smooth(values: np.ndarray, radius: int = 1) -> np.ndarray:
         high = min(values.size, index + radius + 1)
         output[index] = float(np.mean(values[low:high]))
     return output
+
+
+def load_convergence(run_dir: Path) -> dict | None:
+    path = run_dir / "logs" / "validation_convergence.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return None
 
 
 def interpolate_curves(
@@ -105,8 +126,17 @@ def main() -> None:
     parser.add_argument("--families", default="mlp,tf_actor")
     parser.add_argument(
         "--metric",
-        choices=("se", "rate"),
+        choices=("se", "rate", "p05", "qos"),
         default="se",
+    )
+    parser.add_argument(
+        "--source",
+        choices=("training", "validation"),
+        default="training",
+        help=(
+            "plot stochastic training rollouts or fixed-seed deterministic "
+            "validation"
+        ),
     )
     parser.add_argument("--run", default="latest")
     parser.add_argument("--out", required=True)
@@ -137,6 +167,7 @@ def main() -> None:
                 load_curve(
                     latest_run_dir(parent, requested),
                     args.metric,
+                    args.source,
                 )
             )
 
@@ -146,6 +177,7 @@ def main() -> None:
     summary = {
         "tag": args.tag,
         "metric": args.metric,
+        "source": args.source,
         "seeds": seeds,
         "smoothing_radius_points": 1,
         "families": {},
@@ -185,17 +217,39 @@ def main() -> None:
             "first_smoothed_value": float(smooth[0]),
             "last_smoothed_value": float(smooth[-1]),
             "last_five_mean_value": float(np.mean(mean[-5:])),
+            "convergence_by_seed": [
+                {
+                    "seed": seed,
+                    "report": load_convergence(
+                        latest_run_dir(
+                            root / f"{args.tag}_{family}_s{seed}",
+                            requested,
+                        )
+                    ),
+                }
+                for seed in seeds
+            ] if args.source == "validation" else [],
         }
 
-    ax.set_xlabel("Training environment steps")
+    ax.set_xlabel("Environment steps")
     ax.set_ylabel(
-        "System rate (Mbps)"
-        if args.metric == "rate"
-        else "System SE (bps/Hz)"
+        {
+            "rate": "System rate (Mbps)",
+            "se": "System SE (bps/Hz)",
+            "p05": "P05 UE rate (Mbps)",
+            "qos": "QoS violation rate",
+        }[args.metric]
     )
+    metric_label = {
+        "rate": "rate",
+        "se": "SE",
+        "p05": "P05 rate",
+        "qos": "QoS violation",
+    }[args.metric]
     ax.set_title(
-        f"{len(seeds)}-seed mean training "
-        f"{'rate' if args.metric == 'rate' else 'SE'}"
+        f"{len(seeds)}-seed mean "
+        f"{'validation' if args.source == 'validation' else 'training'} "
+        f"{metric_label}"
     )
     ax.grid(True, alpha=0.22, linewidth=0.8)
     ax.legend(frameon=False)

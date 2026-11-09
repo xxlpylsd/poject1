@@ -62,11 +62,18 @@ FIGURE_DIR="${FIGURE_DIR:-}"
 SAVE_INTERVAL="${SAVE_INTERVAL:-10}"
 AUTO_EVAL="${AUTO_EVAL:-1}"
 ALGOS="${ALGOS:-both}"
+TRAINING_VALIDATION="${TRAINING_VALIDATION:-1}"
+VALIDATION_INTERVAL_STEPS="${VALIDATION_INTERVAL_STEPS:-25000}"
+VALIDATION_EPISODES="${VALIDATION_EPISODES:-20}"
+VALIDATION_SEED="${VALIDATION_SEED:-91000}"
+VALIDATION_HORIZON="${VALIDATION_HORIZON:-0}"
+VALIDATION_PLATEAU_RELATIVE_GAIN="${VALIDATION_PLATEAU_RELATIVE_GAIN:-0.005}"
+VALIDATION_WINDOW="${VALIDATION_WINDOW:-3}"
 SAVE_CHECKPOINT_SNAPSHOTS="${SAVE_CHECKPOINT_SNAPSHOTS:-1}"
 SELECT_BEST_CHECKPOINT="${SELECT_BEST_CHECKPOINT:-1}"
-BEST_CHECKPOINT_METRIC="${BEST_CHECKPOINT_METRIC:-qos_constrained}"
+BEST_CHECKPOINT_METRIC="${BEST_CHECKPOINT_METRIC:-auto}"
 BEST_CHECKPOINT_MAX_QOS="${BEST_CHECKPOINT_MAX_QOS:-0.005}"
-BEST_CHECKPOINT_EPISODES="${BEST_CHECKPOINT_EPISODES:-5}"
+BEST_CHECKPOINT_EPISODES="${BEST_CHECKPOINT_EPISODES:-20}"
 BEST_CHECKPOINT_SEED="${BEST_CHECKPOINT_SEED:-91000}"
 EVAL_SEED="${EVAL_SEED:-93000}"
 EVAL_EPISODES="${EVAL_EPISODES:-20}"
@@ -85,6 +92,15 @@ if [[ "$ARCH_PROFILE" != "controlled" &&
   exit 2
 fi
 echo "[architecture] profile=${ARCH_PROFILE}"
+if [[ "$BEST_CHECKPOINT_METRIC" == "auto" ]]; then
+  if [[ "$QOS_PENALTY_WEIGHT" =~ ^([+-]?)0([.]0*)?$ ]]; then
+    BEST_CHECKPOINT_METRIC="system_se"
+  else
+    BEST_CHECKPOINT_METRIC="qos_constrained"
+  fi
+fi
+echo "[validation] enabled=${TRAINING_VALIDATION} interval_steps=${VALIDATION_INTERVAL_STEPS} episodes=${VALIDATION_EPISODES} seed_start=${VALIDATION_SEED}"
+echo "[checkpoint] metric=${BEST_CHECKPOINT_METRIC} episodes=${BEST_CHECKPOINT_EPISODES}"
 if [[ -z "$FIGURE_DIR" ]]; then
   FIGURE_DIR="results/IICMSMobility/PureMobility/mappo/${TAG}_figures"
 fi
@@ -231,6 +247,19 @@ common=(
   --tf_ff_mult 4
   --tf_grad_checkpoint 1
 )
+if [[ "$TRAINING_VALIDATION" == "1" ]]; then
+  common+=(
+    --use_eval
+    --validation_interval_steps "$VALIDATION_INTERVAL_STEPS"
+    --validation_episodes "$VALIDATION_EPISODES"
+    --validation_seed_start "$VALIDATION_SEED"
+    --validation_horizon "$VALIDATION_HORIZON"
+    --validation_plateau_relative_gain "$VALIDATION_PLATEAU_RELATIVE_GAIN"
+    --validation_window "$VALIDATION_WINDOW"
+  )
+else
+  common+=(--no_training_validation)
+fi
 if [[ "$SAVE_CHECKPOINT_SNAPSHOTS" == "1" ]]; then
   common+=(--save_checkpoint_snapshots)
 fi
@@ -382,9 +411,50 @@ if [[ "$PLOT_RESULTS" == "1" ]]; then
       --seeds "$SEED_LIST" \
       --families "$plot_families" \
       --metric "$PLOT_METRIC" \
+      --source training \
       --run latest \
       --out "${FIGURE_DIR}/${TAG}_training_curves.png" || \
       echo "[plot] training-curve plotting failed" >&2
+
+    echo "===== plotting reference-style reward convergence ====="
+    "$PYTHON_BIN" plot_reward_convergence.py \
+      --tag "$TAG" \
+      --seeds "$SEED_LIST" \
+      --families "$plot_families" \
+      --episode-length "$EPISODE_LENGTH" \
+      --source raw \
+      --run latest \
+      --out "${FIGURE_DIR}/${TAG}_reward_convergence.png" || \
+      echo "[plot] reward-convergence plotting failed" >&2
+
+    echo "===== plotting deterministic validation curves ====="
+    "$PYTHON_BIN" plot_training_curves.py \
+      --tag "$TAG" \
+      --seeds "$SEED_LIST" \
+      --families "$plot_families" \
+      --metric "$PLOT_METRIC" \
+      --source validation \
+      --run latest \
+      --out "${FIGURE_DIR}/${TAG}_validation_curves.png" || \
+      echo "[plot] validation-curve plotting failed" >&2
+    "$PYTHON_BIN" plot_training_curves.py \
+      --tag "$TAG" \
+      --seeds "$SEED_LIST" \
+      --families "$plot_families" \
+      --metric p05 \
+      --source validation \
+      --run latest \
+      --out "${FIGURE_DIR}/${TAG}_validation_p05.png" || \
+      echo "[plot] validation P05 plotting failed" >&2
+    "$PYTHON_BIN" plot_training_curves.py \
+      --tag "$TAG" \
+      --seeds "$SEED_LIST" \
+      --families "$plot_families" \
+      --metric qos \
+      --source validation \
+      --run latest \
+      --out "${FIGURE_DIR}/${TAG}_validation_qos.png" || \
+      echo "[plot] validation QoS plotting failed" >&2
 
     if [[ "$AUTO_EVAL" == "1" ]]; then
       echo "===== plotting per-UE SE CDF ====="

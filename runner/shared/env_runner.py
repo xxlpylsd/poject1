@@ -18,6 +18,10 @@ except Exception:
     sio = None
 from runner.shared.base_runner import Runner
 from envs.env_wrappers import summarize_env_infos
+from utils.policy_evaluation import (
+    SharedPolicyActor,
+    evaluate_episodes,
+)
 
 # import imageio
 
@@ -326,8 +330,11 @@ class EnvRunner(Runner):
                     flush=True,
                 )
 
-            # eval
-            if episode % self.eval_interval == 0 and self.use_eval:
+            # fixed-seed deterministic validation
+            if self.should_validate(
+                total_num_steps,
+                final=episode == episodes - 1,
+            ):
                 self.eval(total_num_steps)
 
         progress.finish()
@@ -461,73 +468,30 @@ class EnvRunner(Runner):
             masks,
         )
 
-    @torch.no_grad()
     def eval(self, total_num_steps):
-        eval_episode_rewards = []
-        eval_obs = self.eval_envs.reset()
-
-        eval_rnn_states = np.zeros(
-            (self.n_eval_rollout_threads, *self.buffer.rnn_states.shape[2:]),
-            dtype=np.float32,
+        if self.eval_envs is None or not self.eval_envs.envs:
+            raise RuntimeError(
+                "Training validation requires an evaluation environment"
+            )
+        self.trainer.prep_rollout()
+        policy = self.trainer.policy
+        policy.actor.eval()
+        policy.critic.eval()
+        eval_env = self.eval_envs.envs[0]
+        seeds = [
+            self.validation_seed_start + index
+            for index in range(self.validation_episodes)
+        ]
+        metrics = evaluate_episodes(
+            eval_env,
+            self.all_args,
+            seeds,
+            self.validation_horizon,
+            SharedPolicyActor(
+                policy, self.device, self.num_agents
+            ),
         )
-        eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1), dtype=np.float32)
-
-        for eval_step in range(self.episode_length):
-            self.trainer.prep_rollout()
-            eval_action, eval_rnn_states = self.trainer.policy.act(
-                np.concatenate(eval_obs),
-                np.concatenate(eval_rnn_states),
-                np.concatenate(eval_masks),
-                deterministic=True,
-            )
-            eval_actions = np.array(np.split(_t2n(eval_action), self.n_eval_rollout_threads))
-            eval_rnn_states = np.array(np.split(_t2n(eval_rnn_states), self.n_eval_rollout_threads))
-
-            if self.eval_envs.action_space[0].__class__.__name__ == "MultiDiscrete":
-                nvec = self.eval_envs.action_space[0].nvec
-                for i in range(len(nvec)):
-                    eval_uc_actions_env = np.eye(int(nvec[i]))[
-                        eval_actions[:, :, i]
-                    ]
-                    if i == 0:
-                        eval_actions_env = eval_uc_actions_env
-                    else:
-                        eval_actions_env = np.concatenate((eval_actions_env, eval_uc_actions_env), axis=2)
-            elif self.eval_envs.action_space[0].__class__.__name__ == "Discrete":
-                eval_actions_env = np.squeeze(np.eye(self.eval_envs.action_space[0].n)[eval_actions], 2)
-            else:
-                raise NotImplementedError
-
-            # Obser reward and next obs
-            if hasattr(self.eval_envs, "step_compact"):
-                (
-                    eval_obs,
-                    eval_rewards,
-                    eval_dones,
-                    eval_infos,
-                ) = self.eval_envs.step_compact(eval_actions_env)
-            else:
-                (
-                    eval_obs,
-                    eval_rewards,
-                    eval_dones,
-                    eval_infos,
-                ) = self.eval_envs.step(eval_actions_env)
-            eval_episode_rewards.append(eval_rewards)
-
-            eval_rnn_states[eval_dones == True] = np.zeros(
-                ((eval_dones == True).sum(), self.recurrent_N, self.hidden_size),
-                dtype=np.float32,
-            )
-            eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1), dtype=np.float32)
-            eval_masks[eval_dones == True] = np.zeros(((eval_dones == True).sum(), 1), dtype=np.float32)
-
-        eval_episode_rewards = np.array(eval_episode_rewards)
-        eval_env_infos = {}
-        eval_env_infos["eval_average_episode_rewards"] = np.sum(np.array(eval_episode_rewards), axis=0)
-        eval_average_episode_rewards = np.mean(eval_env_infos["eval_average_episode_rewards"])
-        print("eval average episode rewards of agent: " + str(eval_average_episode_rewards))
-        self.log_env(eval_env_infos, total_num_steps)
+        return self.log_validation(metrics, total_num_steps)
 
     @torch.no_grad()
     def render(self):

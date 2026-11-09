@@ -163,6 +163,32 @@ def rank_key(result: dict) -> tuple[float, float, float]:
     )
 
 
+def boundary_warnings(
+    selected: dict,
+    low_grid: list[float],
+    high_grid: list[float],
+) -> list[str]:
+    """Report selected thresholds that still touch a search boundary."""
+    entries = [
+        ("shared", selected["shared"]),
+        ("static", selected["per_policy"]["static"]),
+        ("dynamic", selected["per_policy"]["dynamic"]),
+    ]
+    warnings = []
+    for label, item in entries:
+        if np.isclose(item["rssi_threshold_lo"], min(low_grid)):
+            warnings.append(
+                f"{label} low threshold {item['rssi_threshold_lo']} "
+                "is at the lower grid boundary"
+            )
+        if np.isclose(item["rssi_threshold_hi"], max(high_grid)):
+            warnings.append(
+                f"{label} high threshold {item['rssi_threshold_hi']} "
+                "is at the upper grid boundary"
+            )
+    return warnings
+
+
 def write_outputs(out_dir: Path, result: dict) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "rssi_threshold_calibration.json").write_text(
@@ -223,6 +249,8 @@ def write_outputs(out_dir: Path, result: dict) -> None:
         encoding="utf-8",
     )
     print(json.dumps(selected, ensure_ascii=False, indent=2))
+    for warning in result.get("boundary_warnings", []):
+        print(f"[WARN] {warning}", flush=True)
     print(f"OUTPUT_DIR={out_dir}")
 
 
@@ -240,7 +268,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--high_grid",
-        default="0.5,1,2,4,8,16,32,64",
+        default="0.5,1,2,4,8,16,32,64,128,256",
     )
     parser.add_argument("--finalists", type=int, default=5)
     parser.add_argument("--out", default=None)
@@ -357,6 +385,9 @@ def main() -> None:
             },
         },
     }
+    result["boundary_warnings"] = boundary_warnings(
+        result["selected"], low_grid, high_grid
+    )
     out_dir = (
         Path(args.out)
         if args.out

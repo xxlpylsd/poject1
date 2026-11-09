@@ -133,11 +133,28 @@ def get_config():
 
     Eval parameters:
         --use_eval
-            by default, do not start evaluation. If set`, start evaluation alongside with training.
+            by default, run deterministic validation alongside training.
+            Use --no_training_validation to disable it.
+        --validation_interval_steps <int>
+            environment-step interval between deterministic validation runs.
+        --validation_episodes <int>
+            number of fixed-seed validation episodes at each checkpoint.
+        --validation_seed_start <int>
+            first validation seed. Validation seeds must stay disjoint from
+            the final test seeds.
+        --validation_horizon <int>
+            validation episode horizon; 0 uses episode_length.
+        --validation_plateau_relative_gain <float>
+            relative system-rate gain per 100k steps below which validation
+            is considered to have reached a plateau.
+        --validation_window <int>
+            number of recent validation points used by the plateau estimate.
         --eval_interval <int>
-            time duration between contiunous twice evaluation progress.
+            legacy update-count interval; periodic validation now uses
+            validation_interval_steps.
         --eval_episodes <int>
-            number of episodes of a single evaluation.
+            legacy episode-count setting; use validation_episodes for
+            training-time validation.
 
     Render parameters:
         --save_gifs
@@ -764,20 +781,71 @@ def get_config():
     parser.add_argument(
         "--use_eval",
         action="store_true",
-        default=False,
-        help="by default, do not start evaluation. If set`, start evaluation alongside with training.",
+        default=True,
+        help=(
+            "run fixed-seed deterministic validation alongside training; "
+            "enabled by default"
+        ),
+    )
+    parser.add_argument(
+        "--no_training_validation",
+        dest="use_eval",
+        action="store_false",
+        help="disable periodic fixed-seed validation during training",
+    )
+    parser.add_argument(
+        "--validation_interval_steps",
+        type=int,
+        default=25000,
+        help="environment steps between deterministic validation runs",
+    )
+    parser.add_argument(
+        "--validation_episodes",
+        type=int,
+        default=20,
+        help="number of fixed-seed episodes in each validation run",
+    )
+    parser.add_argument(
+        "--validation_seed_start",
+        type=int,
+        default=91000,
+        help=(
+            "first validation seed; the default panel is 91000..91019 "
+            "and must remain disjoint from final test seeds"
+        ),
+    )
+    parser.add_argument(
+        "--validation_horizon",
+        type=int,
+        default=0,
+        help="validation horizon; 0 uses episode_length",
+    )
+    parser.add_argument(
+        "--validation_plateau_relative_gain",
+        type=float,
+        default=0.005,
+        help=(
+            "relative system-rate gain per 100k steps below which "
+            "validation is considered plateaued"
+        ),
+    )
+    parser.add_argument(
+        "--validation_window",
+        type=int,
+        default=3,
+        help="recent validation points used for the plateau estimate",
     )
     parser.add_argument(
         "--eval_interval",
         type=int,
         default=25,
-        help="time duration between contiunous twice evaluation progress.",
+        help="legacy update-count interval; retained for old commands",
     )
     parser.add_argument(
         "--eval_episodes",
         type=int,
-        default=32,
-        help="number of episodes of a single evaluation.",
+        default=20,
+        help="legacy episode-count setting; use validation_episodes",
     )
 
     # render parameters

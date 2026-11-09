@@ -7,6 +7,7 @@ from tensorboardX import SummaryWriter
 import csv, time
 from utils.separated_buffer import SeparatedReplayBuffer
 from utils.util import update_linear_schedule
+from utils.policy_evaluation import ValidationRecorder
 
 
 def _t2n(x):
@@ -41,6 +42,18 @@ class Runner(object):
         self.save_interval = self.all_args.save_interval
         self.use_eval = self.all_args.use_eval
         self.eval_interval = self.all_args.eval_interval
+        self.validation_interval_steps = int(
+            self.all_args.validation_interval_steps
+        )
+        self.validation_episodes = int(
+            self.all_args.validation_episodes
+        )
+        self.validation_seed_start = int(
+            self.all_args.validation_seed_start
+        )
+        self.validation_horizon = int(
+            self.all_args.validation_horizon
+        ) or int(self.episode_length)
         self.log_interval = self.all_args.log_interval
 
         # dir
@@ -53,6 +66,14 @@ class Runner(object):
 
         self.save_dir = str(self.run_dir / "models")
         os.makedirs(self.save_dir, exist_ok=True)
+        self.next_validation_step = self.validation_interval_steps
+        self.validation_recorder = ValidationRecorder(
+            self.run_dir,
+            float(
+                self.all_args.validation_plateau_relative_gain
+            ),
+            int(self.all_args.validation_window),
+        )
 
         # CSV 日志（GUI 轮询用）
         self._csv_path = os.path.join(self.log_dir, "progress.csv")
@@ -227,3 +248,49 @@ class Runner(object):
                 self.writter.add_scalar(k, np.mean(v), total_num_steps)
                 with open(self._csv_path, "a", newline="", encoding="utf-8") as f:
                     csv.writer(f).writerow([f"{now:.3f}", total_num_steps, "", -1, k, float(np.mean(v))])
+
+    def should_validate(self, total_num_steps, final=False):
+        if not self.use_eval:
+            return False
+        if final or total_num_steps >= self.next_validation_step:
+            while self.next_validation_step <= total_num_steps:
+                self.next_validation_step += (
+                    self.validation_interval_steps
+                )
+            return True
+        return False
+
+    def log_validation(self, metrics, total_num_steps):
+        row, report = self.validation_recorder.append(
+            total_num_steps, metrics
+        )
+        for key in (
+            "system_se_bps_hz",
+            "sum_rate_mbps",
+            "p05_rate_mbps",
+            "qos_violation_rate",
+            "overload_ratio",
+        ):
+            self.writter.add_scalar(
+                f"validation/{key}",
+                float(metrics.get(key, 0.0)),
+                total_num_steps,
+            )
+        print(
+            "VALIDATE-ORIG %d | steps=%d | episodes=%d | "
+            "rate=%.2f Mbps | P05=%.2f Mbps | QoS=%.4f | "
+            "plateau=%s | slope/100k=%.4f%%"
+            % (
+                row["validation_index"],
+                total_num_steps,
+                row["episodes"],
+                row["sum_rate_mbps"],
+                row["p05_rate_mbps"],
+                row["qos_violation_rate"],
+                report.get("plateau_detected", False),
+                100.0
+                * float(report.get("slope_relative_per_100k", 0.0)),
+            ),
+            flush=True,
+        )
+        return row, report

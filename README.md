@@ -678,16 +678,37 @@ python evaluate_iicms.py \
 默认使用确定性 argmax。需要检查策略分布本身时可增加 `--stochastic`；
 这与论文主表的确定性执行结果应分开报告。
 
-91000–91004用于checkpoint选择，92000–92019用于算法级超参数选择，93000–93019
+91000–91019用于checkpoint选择和训练中验证，92000–92019用于算法级超参数选择，93000–93019
 为最终test。`evaluate_iicms.py --phase test`会读取`checkpoint_selection.json`，
 发现test与checkpoint选择种子重叠时直接报错。每种算法应使用相同数量的调参组合
 和相同的validation/test轨迹，不能用不同的调参预算。
 
 ## 11. Validation checkpoint 选择
 
-训练脚本默认在每个`save_interval`保存带步数的actor/critic快照。训练结束后，
+训练脚本默认每25000个环境步在固定validation种子91000–91019上执行20个
+确定性episode，并同时写出：
+
+```text
+logs/validation_curve.csv
+logs/validation_history.json
+logs/validation_convergence.json
+```
+
+验证数据由训练、checkpoint选择和最终评估共用同一个episode执行核心。每个
+validation episode都会重新配置环境seed，因此AP部署、回程容量、阴影、UE起点
+和RWP路径在MLP与TF之间一致。`validation_convergence.json`用最近3个点的
+固定场景斜率估计当前增长趋势；只有斜率95%上界对应的系统速率增长不超过
+0.5%/100k步时，才报告`plateau_candidate`。否则保持`continue_training`。
+该判断同时参考P05和QoS，不能用随机训练回报代替。
+
+实验脚本默认在每个`save_interval`保存带步数的actor/critic快照。训练结束后，
 `select_best_checkpoint.py`会在固定validation种子91000–91019上执行确定性
-评测。默认采用“QoS约束优先、再最大化SE”的规则：
+评测。默认`BEST_CHECKPOINT_METRIC=auto`：
+
+- 纯速率训练且`qos_penalty_weight=0`时选择`system_se`；
+- 配置正QoS惩罚时选择`qos_constrained`。
+
+如果显式使用QoS约束规则，采用：
 
 ```text
 eligible = QoS违约率 <= max_qos_violation_rate
@@ -696,7 +717,8 @@ best = argmax mean_UE_SE among eligible
 
 默认 `max_qos_violation_rate=0.005`。如果没有 checkpoint 满足约束，则先选
 违约率最低的候选，再在这些候选中选择 SE 最大者。`qos_aware` 加权评分保留
-为消融，但不再是默认规则。
+为消融。纯系统速率实验不应使用该后置约束规则。checkpoint选择默认使用20个
+episode；5个episode只适合早期筛选，不能用于最终选择。
 
 每次validation episode都会用该episode的seed重新配置环境和场景，而不是沿用
 训练的`seed`。因此AP部署、回程容量、阴影、UE起点和RWP路径在MLP与TF之间
@@ -714,6 +736,84 @@ models/critic_best.pt
 
 最终`actor.pt/critic.pt`会被替换为validation最佳模型。最终test评测仍使用
 未参与选择的93000–93019种子。
+
+先用一个种子跑800k收敛探针，不消耗93000–93019最终test种子：
+
+```bash
+SEEDS=1 \
+STEPS=800000 \
+EPISODE_LENGTH=100 \
+SPEED=15 \
+NENV=16 \
+VEC_ENV=subproc \
+ALGOS=both \
+ARCH_PROFILE=native \
+REWARD_MODE=team_rate \
+QOS_PENALTY_WEIGHT=0 \
+TRAINING_VALIDATION=1 \
+VALIDATION_INTERVAL_STEPS=25000 \
+VALIDATION_EPISODES=20 \
+VALIDATION_SEED=91000 \
+VALIDATION_HORIZON=100 \
+VALIDATION_PLATEAU_RELATIVE_GAIN=0.005 \
+VALIDATION_WINDOW=3 \
+SELECT_BEST_CHECKPOINT=0 \
+SAVE_CHECKPOINT_SNAPSHOTS=0 \
+AUTO_EVAL=0 \
+PLOT_RESULTS=1 \
+PLOT_METRIC=rate \
+TAG=rate_convergence_pilot_800k \
+bash run_iicms_comparison.sh
+```
+
+探针结束后查看
+`results/IICMSMobility/PureMobility/mappo/rate_convergence_pilot_800k_figures/rate_convergence_pilot_800k_validation_curves.png`
+以及每个run的`logs/validation_convergence.json`。若平台期出现在`K`步附近，
+正式实验统一使用`STEPS=K`并重新跑完整seed集合，避免探针种子获得额外训练预算。
+例如平台期为600k时，再运行：
+
+```bash
+SEEDS="1,2,3,4,5,6" \
+STEPS=600000 \
+EPISODE_LENGTH=100 \
+SPEED=15 \
+NENV=16 \
+VEC_ENV=subproc \
+ALGOS=both \
+ARCH_PROFILE=native \
+REWARD_MODE=team_rate \
+QOS_PENALTY_WEIGHT=0 \
+TRAINING_VALIDATION=1 \
+VALIDATION_INTERVAL_STEPS=25000 \
+VALIDATION_EPISODES=20 \
+VALIDATION_SEED=91000 \
+VALIDATION_HORIZON=100 \
+SELECT_BEST_CHECKPOINT=1 \
+BEST_CHECKPOINT_METRIC=auto \
+BEST_CHECKPOINT_EPISODES=20 \
+BEST_CHECKPOINT_SEED=91000 \
+AUTO_EVAL=1 \
+EVAL_SEED=93000 \
+EVAL_EPISODES=20 \
+PLOT_RESULTS=1 \
+PLOT_METRIC=rate \
+TAG=rate_main_600k \
+bash run_iicms_comparison.sh
+```
+
+Windows 单种子探针对应命令：
+
+```powershell
+.\run_iicms_comparison.ps1 `
+  -Seeds 1 -Steps 800000 -Episodes 100 -Envs 16 `
+  -Algos both -ArchitectureProfile native `
+  -RewardMode team_rate -QosPenaltyWeight 0 `
+  -TrainingValidation 1 -ValidationIntervalSteps 25000 `
+  -ValidationEpisodes 20 -ValidationSeed 91000 -ValidationHorizon 100 `
+  -SelectBestCheckpoint 0 -SaveCheckpointSnapshots 0 `
+  -AutoEval 0 -PlotResults 1 -PlotMetric rate `
+  -Tag rate_convergence_pilot_800k
+```
 
 训练和超参数搜索可以只运行一个算法：
 
@@ -791,6 +891,24 @@ python plot_training_curves.py \
   --run latest \
   --out results/IICMSMobility/PureMobility/mappo/fronthaul_queue_native_rate_400k_figures/three_learning_training_curves.png
 ```
+
+参考论文式训练 reward 收敛图：
+
+```bash
+python plot_reward_convergence.py \
+  --tag fronthaul_queue_native_rate_400k \
+  --seeds 1,2,3,4,5,6 \
+  --families mlp,tf_actor,orig_mappo \
+  --episode-length 100 \
+  --source raw \
+  --out results/IICMSMobility/PureMobility/mappo/fronthaul_queue_native_rate_400k_figures/three_learning_reward_convergence.png
+```
+
+脚本优先读取每个 run 的`reward_proposed.npy`或`reward_proposed.mat`，按
+`episode_length`聚合为 episode 内的每步平均 reward，并画多种子均值和
+95%置信带。单种子时使用episode内标准差带。默认`--source raw`要求原始逐步
+reward存在，缺失时直接报错。只有显式传入`--source auto`才允许回退到
+`curve.csv`，并会在标题和JSON中标记为fallback。
 
 固定模式/RSSI基线与三条学习策略合并绘图时，传：
 
@@ -966,7 +1084,8 @@ bash run_iicms_comparison.sh
 该实验中：
 
 - 奖励使用系统总速率 `sum_k R_k(t)`，单位为 Mbps；
-- 不使用 validation checkpoint 选择，直接评测训练结束模型；
+- 使用与纯速率目标一致的 `system_se` validation checkpoint 选择；
+- 训练中每25000步执行20个固定种子的确定性validation；
 - `MIN_UE_SE_BPS_HZ` 只记录最低 UE SE 和 floor 违约率，不改变奖励；
 - MLP 与 TF 的模型选择和评价口径完全相同。
 
@@ -985,6 +1104,12 @@ review_bundles/<TAG>_review_<timestamp>.zip
 results/IICMSMobility/PureMobility/mappo/<TAG>_figures/
 ├── <TAG>_training_curves.png
 ├── <TAG>_training_curves.json
+├── <TAG>_reward_convergence.png
+├── <TAG>_reward_convergence.json
+├── <TAG>_validation_curves.png
+├── <TAG>_validation_curves.json
+├── <TAG>_validation_p05.png
+├── <TAG>_validation_qos.png
 ├── <TAG>_rate_cdf.png
 └── <TAG>_rate_cdf.json
 ```
@@ -1085,7 +1210,8 @@ python tune_rssi_thresholds.py \
   --screen_episodes "$SCREEN_EPISODES" \
   --final_episodes "$FINAL_EPISODES" \
   --horizon 100 \
-  --cluster_size 5
+  --cluster_size 5 \
+  --high_grid "0.5,1,2,4,8,16,32,64,128,256"
 ```
 
 脚本先在 5 个 validation episode 上搜索候选门限，再在 20 个 validation
@@ -1098,6 +1224,10 @@ rssi_threshold_calibration/
 ├── rssi_threshold_calibration.csv
 └── selected_rssi_thresholds.env
 ```
+
+如果共享、静态或动态策略最终选择的低/高门限仍等于搜索网格边界，
+`rssi_threshold_calibration.json`会写入`boundary_warnings`，终端也会输出
+`[WARN]`。此时应扩大对应网格后重新校准，不能把边界值直接当作已收敛最优。
 
 最终 test seeds 不参与门限选择。
 

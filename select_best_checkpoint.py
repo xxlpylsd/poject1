@@ -13,18 +13,14 @@ from utils.runtime_env import normalize_thread_environment
 
 normalize_thread_environment()
 
-import numpy as np
 import torch
 
 from algorithms.algorithm.rMAPPOPolicy import RMAPPOPolicy
 from envs.env_iicms_mobile import IICMSMobileDiscreteActionEnv
-
-
-def encode_action(env, action: np.ndarray) -> np.ndarray:
-    action_index = int(np.asarray(action).reshape(-1)[0])
-    encoded = np.zeros(len(env.env.joint_actions), dtype=np.float32)
-    encoded[action_index] = 1.0
-    return encoded
+from utils.policy_evaluation import (
+    SharedPolicyActor,
+    evaluate_episodes,
+)
 
 
 def snapshot_steps(models_dir: Path) -> list[int]:
@@ -75,7 +71,6 @@ def make_policy(all_args: Namespace, env, device: torch.device):
     )
 
 
-@torch.no_grad()
 def evaluate_candidate(
     policy,
     env,
@@ -93,69 +88,16 @@ def evaluate_candidate(
         policy.critic.load_state_dict(
             torch.load(critic_path, map_location=policy.device)
         )
-    policy.actor.eval()
-    policy.critic.eval()
-
-    step_system_se = []
-    per_ue_rates = []
-    qos_violation = []
-    qos_shortfall = []
-    overload = []
-    fronthaul_drop = []
-    fronthaul_queue = []
-    for seed in seeds:
-        episode_args = Namespace(**vars(all_args))
-        episode_args.seed = seed
-        env.configure(episode_args)
-        obs = env.reset()
-        rnn = np.zeros((env.num_agent, 1, 1), dtype=np.float32)
-        masks = np.ones((env.num_agent, 1), dtype=np.float32)
-        for _ in range(horizon):
-            action, rnn = policy.act(
-                torch.as_tensor(
-                    obs, device=policy.device
-                ),
-                torch.as_tensor(
-                    rnn, device=policy.device
-                ),
-                torch.as_tensor(
-                    masks, device=policy.device
-                ),
-                deterministic=True,
-            )
-            action = action.detach().cpu().numpy().astype(int)
-            env_actions = [
-                encode_action(env, row) for row in action
-            ]
-            obs, _, _, infos = env.step(env_actions)
-            rates = np.asarray([
-                item["inst_rate"] for item in infos
-            ]) / 1e6
-            per_ue_rates.extend(rates.tolist())
-            step_system_se.append(
-                float(rates.sum()) * 1e6 / env.env.bandwidth_hz
-            )
-            qos_violation.append(float(np.mean([
-                item["qos_violation"] for item in infos
-            ])))
-            qos_shortfall.append(float(np.mean([
-                item["qos_shortfall_mbps"] for item in infos
-            ])))
-            overload.append(float(np.mean([
-                item["backhaul_scale"] < 0.999999
-                for item in infos
-            ])))
-            fronthaul_drop.append(float(np.mean([
-                item["fronthaul_drop_ratio"] for item in infos
-            ])))
-            fronthaul_queue.append(float(np.mean([
-                item["fronthaul_queue_ratio"] for item in infos
-            ])))
-
-    system_se = float(np.mean(step_system_se))
-    mean_ue_se = system_se / env.num_agent
-    violation_rate = float(np.mean(qos_violation))
-    shortfall_mbps = float(np.mean(qos_shortfall))
+    metrics = evaluate_episodes(
+        env,
+        all_args,
+        seeds,
+        horizon,
+        SharedPolicyActor(policy, policy.device, env.num_agent),
+    )
+    mean_ue_se = float(metrics["mean_ue_se_bps_hz"])
+    violation_rate = float(metrics["qos_violation_rate"])
+    shortfall_mbps = float(metrics["qos_shortfall_mbps"])
     requirement = max(
         float(env.env.rate_req_lo_mbps), 1e-12
     )
@@ -166,17 +108,30 @@ def evaluate_candidate(
         * (violation_rate + normalized_shortfall)
     )
     return {
-        "system_se_bps_hz": system_se,
+        "system_se_bps_hz": float(metrics["system_se_bps_hz"]),
         "mean_ue_se_bps_hz": mean_ue_se,
-        "p05_mbps": float(np.percentile(per_ue_rates, 5)),
-        "p50_mbps": float(np.percentile(per_ue_rates, 50)),
+        "p05_mbps": float(metrics["p05_rate_mbps"]),
+        "p50_mbps": float(metrics["p50_rate_mbps"]),
         "qos_violation_rate": violation_rate,
         "qos_shortfall_mbps": shortfall_mbps,
-        "overload_ratio": float(np.mean(overload)),
-        "fronthaul_drop_ratio": float(np.mean(fronthaul_drop)),
-        "fronthaul_queue_ratio": float(np.mean(fronthaul_queue)),
+        "overload_ratio": float(metrics["overload_ratio"]),
+        "fronthaul_drop_ratio": float(
+            metrics["fronthaul_drop_ratio"]
+        ),
+        "fronthaul_queue_ratio": float(
+            metrics["fronthaul_queue_ratio"]
+        ),
         "qos_aware_score": float(qos_aware_score),
     }
+
+
+def resolve_selection_metric(metric: str, qos_penalty_weight: float) -> str:
+    """Resolve objective-aware checkpoint selection defaults."""
+    if metric != "auto":
+        return metric
+    if float(qos_penalty_weight) > 0.0:
+        return "qos_constrained"
+    return "system_se"
 
 
 def select_candidate(
@@ -243,12 +198,21 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run_dir", required=True)
     parser.add_argument("--seed_start", type=int, default=91000)
-    parser.add_argument("--episodes", type=int, default=5)
+    parser.add_argument("--episodes", type=int, default=20)
     parser.add_argument("--horizon", type=int, default=100)
     parser.add_argument(
         "--metric",
-        choices=("qos_constrained", "qos_aware", "system_se"),
-        default="qos_constrained",
+        choices=(
+            "auto",
+            "qos_constrained",
+            "qos_aware",
+            "system_se",
+        ),
+        default="auto",
+        help=(
+            "auto uses system_se for pure-rate training and "
+            "qos_constrained when a positive QoS penalty is configured"
+        ),
     )
     parser.add_argument(
         "--max_qos_violation_rate",
@@ -265,6 +229,10 @@ def main() -> None:
     run_dir = Path(args.run_dir)
     models_dir = run_dir / "models"
     all_args = load_config(run_dir)
+    args.metric = resolve_selection_metric(
+        args.metric,
+        getattr(all_args, "qos_penalty_weight", 0.0),
+    )
     env = IICMSMobileDiscreteActionEnv()
     env.configure(all_args)
     device = torch.device(

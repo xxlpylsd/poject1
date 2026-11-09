@@ -1,0 +1,260 @@
+{
+  "tag": "rate_main_600k",
+  "metric": "qos",
+  "source": "validation",
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "smoothing_radius_points": 1,
+  "families": {
+    "mlp": {
+      "seeds": 6,
+      "first_smoothed_value": 0.0772835431738082,
+      "last_smoothed_value": 0.018351729425585852,
+      "last_five_mean_value": 0.018481917702343413,
+      "convergence_by_seed": [
+        {
+          "seed": 1,
+          "report": {
+            "status": "still_improving_or_uncertain",
+            "plateau_detected": false,
+            "recommendation": "continue_training",
+            "validation_points": 3,
+            "first_step": 550400,
+            "last_step": 600000,
+            "current_mean_sum_rate_mbps": 3354.51308297574,
+            "slope_mbps_per_100k": 19.861937993029795,
+            "slope_relative_per_100k": 0.005920960062379771,
+            "slope_ci95_mbps_per_100k": [
+              -5.093858827226327,
+              44.81773481328592
+            ],
+            "relative_gain_tolerance_per_100k": 0.005
+          }
+        },
+        {
+          "seed": 2,
+          "report": {
+            "status": "still_improving_or_uncertain",
+            "plateau_detected": false,
+            "recommendation": "continue_training",
+            "validation_points": 3,
+            "first_step": 550400,
+            "last_step": 600000,
+            "current_mean_sum_rate_mbps": 3260.3638084292143,
+            "slope_mbps_per_100k": 46.920090747831175,
+            "slope_relative_per_100k": 0.014391059864707689,
+            "slope_ci95_mbps_per_100k": [
+              32.604928348902,
+              61.23525314676035
+            ],
+            "relative_gain_tolerance_per_100k": 0.005
+          }
+        },
+        {
+          "seed": 3,
+          "report": {
+            "status": "still_improving_or_uncertain",
+            "plateau_detected": false,
+            "recommendation": "continue_training",
+            "validation_points": 3,
+            "first_step": 550400,
+            "last_step": 600000,
+            "current_mean_sum_rate_mbps": 3328.483202008406,
+            "slope_mbps_per_100k": 17.06631104234516,
+            "slope_relative_per_100k": 0.005127353814508468,
+            "slope_ci95_mbps_per_100k": [
+              -4.858595716325421,
+              38.991217801015736
+            ],
+            "relative_gain_tolerance_per_100k": 0.005
+          }
+        },
+        {
+          "seed": 4,
+          "report": {
+            "status": "plateau_candidate",
+            "plateau_detected": true,
+            "recommendation": "plateau_candidate",
+            "validation_points": 3,
+            "first_step": 550400,
+            "last_step": 600000,
+            "current_mean_sum_rate_mbps": 3348.512423967113,
+            "slope_mbps_per_100k": -24.196982705545913,
+            "slope_relative_per_100k": -0.007226188719610246,
+            "slope_ci95_mbps_per_100k": [
+              -36.521773460968404,
+              -11.87219195012342
+            ],
+            "relative_gain_tolerance_per_100k": 0.005
+          }
+        },
+        {
+          "seed": 5,
+          "report": {
+            "status": "still_improving_or_uncertain",
+            "plateau_detected": false,
+            "recommendation": "continue_training",
+            "validation_points": 3,
+            "first_step": 550400,
+            "last_step": 600000,
+            "current_mean_sum_rate_mbps": 3315.231264524352,
+            "slope_mbps_per_100k": -12.964358432264646,
+            "slope_relative_per_100k": -0.003910544211800165,
+            "slope_ci95_mbps_per_100k": [
+              -63.657966648883814,
+              37.72924978435452
+            ],
+            "relative_gain_tolerance_per_100k": 0.005
+          }
+        },
+        {
+          "seed": 6,
+          "report": {
+            "status": "still_improving_or_uncertain",
+            "plateau_detected": false,
+            "recommendation": "continue_training",
+            "validation_points": 3,
+            "first_step": 550400,
+            "last_step": 600000,
+            "current_mean_sum_rate_mbps": 3343.09903412622,
+            "slope_mbps_per_100k": 70.10500770458091,
+            "slope_relative_per_100k": 0.02097006609404981,
+            "slope_ci95_mbps_per_100k": [
+              58.92601214750597,
+              81.28400326165585
+            ],
+            "relative_gain_tolerance_per_100k": 0.005
+          }
+        }
+      ]
+    },
+    "tf_actor": {
+      "seeds": 6,
+      "first_smoothed_value": 0.24008539724772768,
+      "last_smoothed_value": 0.00965606427378965,
+      "last_five_mean_value": 0.009632590428491931,
+      "convergence_by_seed": [
+        {
+          "seed": 1,
+          "report": {
+            "status": "still_improving_or_uncertain",
+            "plateau_detected": false,
+            "recommendation": "continue_training",
+            "validation_points": 3,
+            "first_step": 550400,
+            "last_step": 600000,
+            "current_mean_sum_rate_mbps": 3397.85322352126,
+            "slope_mbps_per_100k": 116.84075034314664,
+            "slope_relative_per_100k": 0.03438663846169975,
+            "slope_ci95_mbps_per_100k": [
+              86.85019157983646,
+              146.8313091064568
+            ],
+            "relative_gain_tolerance_per_100k": 0.005
+          }
+        },
+        {
+          "seed": 2,
+          "report": {
+            "status": "plateau_candidate",
+            "plateau_detected": true,
+            "recommendation": "plateau_candidate",
+            "validation_points": 3,
+            "first_step": 550400,
+            "last_step": 600000,
+            "current_mean_sum_rate_mbps": 3326.6002409550274,
+            "slope_mbps_per_100k": -123.38872200793689,
+            "slope_relative_per_100k": -0.03709153882959903,
+            "slope_ci95_mbps_per_100k": [
+              -142.46205605334234,
+              -104.31538796253145
+            ],
+            "relative_gain_tolerance_per_100k": 0.005
+          }
+        },
+        {
+          "seed": 3,
+          "report": {
+            "status": "plateau_candidate",
+            "plateau_detected": true,
+            "recommendation": "plateau_candidate",
+            "validation_points": 3,
+            "first_step": 550400,
+            "last_step": 600000,
+            "current_mean_sum_rate_mbps": 3363.4542896744592,
+            "slope_mbps_per_100k": -109.80576759062843,
+            "slope_relative_per_100k": -0.03264672510273843,
+            "slope_ci95_mbps_per_100k": [
+              -135.4092135452297,
+              -84.20232163602716
+            ],
+            "relative_gain_tolerance_per_100k": 0.005
+          }
+        },
+        {
+          "seed": 4,
+          "report": {
+            "status": "still_improving_or_uncertain",
+            "plateau_detected": false,
+            "recommendation": "continue_training",
+            "validation_points": 3,
+            "first_step": 550400,
+            "last_step": 600000,
+            "current_mean_sum_rate_mbps": 3408.159954140951,
+            "slope_mbps_per_100k": 58.1120867550805,
+            "slope_relative_per_100k": 0.017050868367980702,
+            "slope_ci95_mbps_per_100k": [
+              38.772177061826525,
+              77.45199644833447
+            ],
+            "relative_gain_tolerance_per_100k": 0.005
+          }
+        },
+        {
+          "seed": 5,
+          "report": {
+            "status": "still_improving_or_uncertain",
+            "plateau_detected": false,
+            "recommendation": "continue_training",
+            "validation_points": 3,
+            "first_step": 550400,
+            "last_step": 600000,
+            "current_mean_sum_rate_mbps": 3377.9902447756103,
+            "slope_mbps_per_100k": 148.1214206584723,
+            "slope_relative_per_100k": 0.04384897821642808,
+            "slope_ci95_mbps_per_100k": [
+              128.0758896653586,
+              168.16695165158598
+            ],
+            "relative_gain_tolerance_per_100k": 0.005
+          }
+        },
+        {
+          "seed": 6,
+          "report": {
+            "status": "still_improving_or_uncertain",
+            "plateau_detected": false,
+            "recommendation": "continue_training",
+            "validation_points": 3,
+            "first_step": 550400,
+            "last_step": 600000,
+            "current_mean_sum_rate_mbps": 3441.4737182920567,
+            "slope_mbps_per_100k": 1.6164745695694855,
+            "slope_relative_per_100k": 0.00046970417381880043,
+            "slope_ci95_mbps_per_100k": [
+              -32.357141433290124,
+              35.59009057242909
+            ],
+            "relative_gain_tolerance_per_100k": 0.005
+          }
+        }
+      ]
+    }
+  }
+}

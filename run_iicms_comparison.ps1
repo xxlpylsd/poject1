@@ -5,15 +5,22 @@ param(
     [int]$Envs = 4,
     [int]$Cuda = 1,
     [int]$AutoEval = 1,
+    [int]$TrainingValidation = 1,
+    [int]$ValidationIntervalSteps = 25000,
+    [int]$ValidationEpisodes = 20,
+    [int]$ValidationSeed = 91000,
+    [int]$ValidationHorizon = 0,
+    [double]$ValidationPlateauRelativeGain = 0.005,
+    [int]$ValidationWindow = 3,
     [string]$PackageMode = "results",
     [string[]]$PackageIncludeTags = @(),
     [string]$Algos = "both",
     [string]$RewardMode = "mean_se",
     [int]$SaveCheckpointSnapshots = 1,
     [int]$SelectBestCheckpoint = 1,
-    [string]$BestCheckpointMetric = "qos_constrained",
+    [string]$BestCheckpointMetric = "auto",
     [double]$BestCheckpointMaxQos = 0.005,
-    [int]$BestCheckpointEpisodes = 5,
+    [int]$BestCheckpointEpisodes = 20,
     [int]$BestCheckpointSeed = 91000,
     [int]$EvalSeed = 93000,
     [int]$EvalEpisodes = 20,
@@ -67,6 +74,15 @@ $env:OMP_NUM_THREADS = "1"
 $env:MKL_NUM_THREADS = "1"
 $env:OPENBLAS_NUM_THREADS = "1"
 Write-Host "[architecture] profile=$ArchitectureProfile"
+if ($BestCheckpointMetric -eq "auto") {
+    if ($QosPenaltyWeight -eq 0.0) {
+        $BestCheckpointMetric = "system_se"
+    } else {
+        $BestCheckpointMetric = "qos_constrained"
+    }
+}
+Write-Host "[validation] enabled=$TrainingValidation interval_steps=$ValidationIntervalSteps episodes=$ValidationEpisodes seed_start=$ValidationSeed"
+Write-Host "[checkpoint] metric=$BestCheckpointMetric episodes=$BestCheckpointEpisodes"
 
 $selectionEnd = $BestCheckpointSeed + $BestCheckpointEpisodes - 1
 $evaluationEnd = $EvalSeed + $EvalEpisodes - 1
@@ -123,6 +139,19 @@ $common = @(
     "--tf_n_layers", "2",
     "--tf_ff_mult", "4"
 )
+if ($TrainingValidation -eq 1) {
+    $common += @(
+        "--use_eval",
+        "--validation_interval_steps", "$ValidationIntervalSteps",
+        "--validation_episodes", "$ValidationEpisodes",
+        "--validation_seed_start", "$ValidationSeed",
+        "--validation_horizon", "$ValidationHorizon",
+        "--validation_plateau_relative_gain", "$ValidationPlateauRelativeGain",
+        "--validation_window", "$ValidationWindow"
+    )
+} else {
+    $common += "--no_training_validation"
+}
 if ($SaveCheckpointSnapshots -eq 1) {
     $common += "--save_checkpoint_snapshots"
 }
@@ -295,9 +324,27 @@ if ($PlotResults -eq 1) {
         $seedCsv = ($Seeds -join ",")
         $familyCsv = ($plotFamilies -join ",")
         Write-Host "===== plotting training curves ====="
-        & $Python plot_training_curves.py --tag $Tag --seeds $seedCsv --families $familyCsv --metric $PlotMetric --run latest --out "$FigureDir/${Tag}_training_curves.png"
+        & $Python plot_training_curves.py --tag $Tag --seeds $seedCsv --families $familyCsv --metric $PlotMetric --source training --run latest --out "$FigureDir/${Tag}_training_curves.png"
         if ($LASTEXITCODE -ne 0) {
             Write-Warning "Training-curve plotting failed"
+        }
+        Write-Host "===== plotting reference-style reward convergence ====="
+        & $Python plot_reward_convergence.py --tag $Tag --seeds $seedCsv --families $familyCsv --episode-length $Episodes --source raw --run latest --out "$FigureDir/${Tag}_reward_convergence.png"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Reward-convergence plotting failed"
+        }
+        Write-Host "===== plotting deterministic validation curves ====="
+        & $Python plot_training_curves.py --tag $Tag --seeds $seedCsv --families $familyCsv --metric $PlotMetric --source validation --run latest --out "$FigureDir/${Tag}_validation_curves.png"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Validation-curve plotting failed"
+        }
+        & $Python plot_training_curves.py --tag $Tag --seeds $seedCsv --families $familyCsv --metric p05 --source validation --run latest --out "$FigureDir/${Tag}_validation_p05.png"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Validation P05 plotting failed"
+        }
+        & $Python plot_training_curves.py --tag $Tag --seeds $seedCsv --families $familyCsv --metric qos --source validation --run latest --out "$FigureDir/${Tag}_validation_qos.png"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Validation QoS plotting failed"
         }
         if ($AutoEval -eq 1) {
             Write-Host "===== plotting per-UE SE CDF ====="

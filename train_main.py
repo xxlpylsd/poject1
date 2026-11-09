@@ -74,10 +74,9 @@ def make_eval_env(all_args):
             env.seed(all_args.seed + rank * 1000)
             return env
         return init_env
-    return make_vec_env(
-        [get_env_fn(i) for i in range(all_args.n_eval_rollout_threads)],
-        getattr(all_args, "vec_env", "auto"),
-    )
+    # Training-time validation is deliberately serial and deterministic:
+    # each validation episode configures a fixed scenario seed in turn.
+    return make_vec_env([get_env_fn(0)], "dummy")
 
 
 def parse_args(args, parser):
@@ -113,6 +112,18 @@ def main(args):
             "Require 0 <= backhaul_lo <= backhaul_hi, got "
             f"{all_args.backhaul_lo} and {all_args.backhaul_hi}"
         )
+    if int(all_args.validation_interval_steps) <= 0:
+        raise ValueError("validation_interval_steps must be positive")
+    if int(all_args.validation_episodes) <= 0:
+        raise ValueError("validation_episodes must be positive")
+    if int(all_args.validation_horizon) < 0:
+        raise ValueError("validation_horizon must be non-negative")
+    if float(all_args.validation_plateau_relative_gain) < 0.0:
+        raise ValueError(
+            "validation_plateau_relative_gain must be non-negative"
+        )
+    if int(all_args.validation_window) < 3:
+        raise ValueError("validation_window must be at least 3")
     if (
         all_args.reward_mode == "mean_se"
         and int(all_args.objective_horizon)
@@ -179,6 +190,7 @@ def main(args):
         "utils/valuenorm.py",
         "utils/shared_buffer.py",
         "utils/separated_buffer.py",
+        "utils/policy_evaluation.py",
         "utils/util.py",
         "algorithms/utils/mlp.py",
         "runner/shared/env_runner.py",

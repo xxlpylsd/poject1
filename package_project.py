@@ -21,6 +21,7 @@ EXCLUDED_PARTS = {
     "release_bundles",
     "tmp",
     "analysis_outputs",
+    "_github_upload",
 }
 EXCLUDED_PREFIXES = (
     "results_eval_",

@@ -17,6 +17,9 @@ CORE_FILENAMES = {
     "curve.csv",
     "metrics_history.json",
     "summary.json",
+    "validation_curve.csv",
+    "validation_history.json",
+    "validation_convergence.json",
 }
 BEST_MODEL_FILENAMES = {
     "actor_best.pt",
