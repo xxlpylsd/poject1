@@ -1,10 +1,8 @@
 # IICMS Mobility
 
 本项目实现簇化 Cell-Free 网络中的干扰协调模式选择与 AP 簇选择。
-核心方法是 MAPPO Actor-Critic，对比 MLP 与 Transformer Actor，并提供固定模式、
-动态聚类和 RSSI 门限基线。
 
-本仓库是公开仓库，欢迎通过 Fork 和 Pull Request 修改、补充实验或提交改进。
+
 
 ## 项目结构
 
