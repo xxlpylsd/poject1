@@ -1,26 +1,20 @@
 import torch.nn as nn
 from .util import init, get_clones
-
-"""MLP modules."""
+'MLP modules.'
 
 class MLPLayer(nn.Module):
+
     def __init__(self, input_dim, hidden_size, layer_N, use_orthogonal, use_ReLU):
         super(MLPLayer, self).__init__()
         self._layer_N = layer_N
-
         active_func = [nn.Tanh(), nn.ReLU()][use_ReLU]
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][use_orthogonal]
         gain = nn.init.calculate_gain(['tanh', 'relu'][use_ReLU])
 
-        #统一初始化权重（避免随机初始化导致训练不稳定）
         def init_(m):
             return init(m, init_method, lambda x: nn.init.constant_(x, 0), gain=gain)
-
-        #多层全连接层（DNN核心）
-        self.fc1 = nn.Sequential(
-            init_(nn.Linear(input_dim, hidden_size)), active_func, nn.LayerNorm(hidden_size))
-        self.fc_h = nn.Sequential(init_(
-            nn.Linear(hidden_size, hidden_size)), active_func, nn.LayerNorm(hidden_size))
+        self.fc1 = nn.Sequential(init_(nn.Linear(input_dim, hidden_size)), active_func, nn.LayerNorm(hidden_size))
+        self.fc_h = nn.Sequential(init_(nn.Linear(hidden_size, hidden_size)), active_func, nn.LayerNorm(hidden_size))
         self.fc2 = get_clones(self.fc_h, self._layer_N)
 
     def forward(self, x):
@@ -29,49 +23,29 @@ class MLPLayer(nn.Module):
             x = self.fc2[i](x)
         return x
 
-
 class MLPBase(nn.Module):
-    def __init__(
-        self,
-        args,
-        obs_shape,
-        cat_self=True,
-        attn_internal=False,
-        token_dim=1,
-    ):
-        super(MLPBase, self).__init__()
 
+    def __init__(self, args, obs_shape, cat_self=True, attn_internal=False, token_dim=1):
+        super(MLPBase, self).__init__()
         self._use_feature_normalization = args.use_feature_normalization
         self._use_orthogonal = args.use_orthogonal
         self._use_ReLU = args.use_ReLU
         self._stacked_frames = args.stacked_frames
         self._layer_N = args.layer_N
         self.hidden_size = args.hidden_size
-
         obs_dim = obs_shape[0]
         token_dim = int(token_dim)
-        self.token_dim = (
-            token_dim
-            if token_dim > 1 and obs_dim % token_dim == 0
-            else obs_dim
-        )
-
+        self.token_dim = token_dim if token_dim > 1 and obs_dim % token_dim == 0 else obs_dim
         if self._use_feature_normalization:
             self.feature_norm = nn.LayerNorm(self.token_dim)
-
-        self.mlp = MLPLayer(obs_dim, self.hidden_size,
-                              self._layer_N, self._use_orthogonal, self._use_ReLU)
+        self.mlp = MLPLayer(obs_dim, self.hidden_size, self._layer_N, self._use_orthogonal, self._use_ReLU)
 
     def forward(self, x):
         if self._use_feature_normalization:
             if self.token_dim != x.size(-1):
                 original_shape = x.shape
-                x = self.feature_norm(
-                    x.view(-1, x.size(-1) // self.token_dim, self.token_dim)
-                ).view(original_shape)
+                x = self.feature_norm(x.view(-1, x.size(-1) // self.token_dim, self.token_dim)).view(original_shape)
             else:
                 x = self.feature_norm(x)
-
         x = self.mlp(x)
-
         return x

@@ -24,7 +24,6 @@ if [[ -n "$RSSI_THRESHOLDS_FILE" ]]; then
     echo "Missing RSSI thresholds file: $RSSI_THRESHOLDS_FILE" >&2
     exit 2
   fi
-  # The calibration utility writes shell-compatible assignments.
   source "$RSSI_THRESHOLDS_FILE"
 fi
 if [[ -z "$RSSI_THRESHOLD_LO" ||
@@ -65,8 +64,6 @@ run_baseline() {
     "$@" > "${OUTPUT_ROOT}/${label}.log" 2>&1
 }
 
-# Fixed coordination modes are intentionally evaluated with static
-# clustering only. The entire physical AP ranking is frozen at reset.
 run_baseline sc_nc \
   --baseline_policy fixed \
   --cluster_policy static \
@@ -83,8 +80,6 @@ for size in 2 3 4 5; do
     --fixed_action "JT_L${size}_S00"
 done
 
-# Fixed-mode dynamic-clustering controls. Only the best size per mode is
-# displayed in the final CDF, but all sizes are evaluated for selection.
 run_baseline dc_nc \
   --baseline_policy fixed \
   --cluster_policy dynamic \
@@ -101,8 +96,6 @@ for size in 2 3 4 5; do
     --fixed_action "JT_L${size}_S00"
 done
 
-# The RSSI-threshold reference is compared under identical static and
-# dynamic clustering rules.
 run_baseline sc_rssi \
   --baseline_policy rssi \
   --cluster_policy static \
