@@ -15,13 +15,13 @@
 | `train_main.py` | 训练入口：构造环境、策略、Runner 和结果目录 |
 | `config.py` | 全部命令行参数及其默认值 |
 | `run_iicms_comparison.sh` / `.ps1` | 一键训练、validation、checkpoint 选择、test、绘图和打包 |
-| `evaluate_iicms.py` | 评价学习策略、固定动作和 RSSI 策略 |
+| `evaluate_iicms.py` | 评价学习策略、固定动作和 RSSI 策略，并逐 episode 输出进度 |
 | `evaluate_existing_runs.sh` | 对已有训练目录重新执行评价 |
 | `select_best_checkpoint.py` | 用固定 validation seeds 选择最佳 checkpoint |
 | `tune_rssi_thresholds.py` | 在 validation seeds 上校准 SC/DC-RSSI 门限 |
 | `run_baseline_suite.sh` | 运行固定模式、动态聚类和 RSSI 基线套件 |
 | `summarize_baseline_results.py` | 汇总基线 JSON 为 CSV/JSON |
-| `evaluate_ap_count_sweep.py` | 不同 AP 数量下的 zero-shot 扩展评价 |
+| `evaluate_ap_count_sweep.py` | 不同 AP 数量下的 zero-shot 扩展评价，实时转发子评价进度 |
 | `evaluate_backhaul_capacity_sweep.py` | 不同回程容量下的扩展评价 |
 | `plot_training_curves.py` | 绘制训练或 validation 多 seed 曲线 |
 | `plot_reward_convergence.py` | 由 `reward_proposed.npy` 绘制论文式 reward 收敛图 |

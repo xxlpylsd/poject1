@@ -8,6 +8,7 @@ import shlex
 import statistics
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 import matplotlib
@@ -81,11 +82,27 @@ def execute_evaluation(command: list[str], cwd: Path, log_path: Path, dry_run: b
     if dry_run:
         return
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    completed = subprocess.run(command, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
-    log_path.write_text(completed.stdout, encoding='utf-8')
-    if completed.returncode != 0:
-        tail = '\n'.join(completed.stdout.splitlines()[-30:])
-        raise RuntimeError(f'Evaluation failed ({completed.returncode}). See {log_path}\n{tail}')
+    started = time.monotonic()
+    with log_path.open('w', encoding='utf-8') as log:
+        process = subprocess.Popen(
+            command,
+            cwd=cwd,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=1,
+        )
+        if process.stdout is None:
+            raise RuntimeError('Unable to capture evaluation output')
+        for line in process.stdout:
+            log.write(line)
+            log.flush()
+            print(line, end='', flush=True)
+        returncode = process.wait()
+    if returncode != 0:
+        tail = '\n'.join(log_path.read_text(encoding='utf-8').splitlines()[-30:])
+        raise RuntimeError(f'Evaluation failed ({returncode}). See {log_path}\n{tail}')
+    print(f'DONE in {time.monotonic() - started:.1f}s -> {log_path}', flush=True)
 
 def add_common_eval_args(command: list[str], run_dir: Path, output_dir: Path, ap_count: int, seed_start: int, episodes: int, horizon: int) -> None:
     command.extend(['--run_dir', str(run_dir), '--seed_start', str(seed_start), '--episodes', str(episodes), '--horizon', str(horizon), '--phase', 'test', '--num_aps_override', str(ap_count), '--out', str(output_dir)])
