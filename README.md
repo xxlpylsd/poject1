@@ -12,14 +12,15 @@
 |---|---|
 | `train_main.py` | 训练入口：构造环境、策略、Runner 和结果目录 |
 | `config.py` | 全部命令行参数及其默认值 |
+| `AGENTS.md` | 仓库逻辑、关键不变量、测试与 Pull Request 规则 |
 | `run_iicms_comparison.sh` / `.ps1` | 一键训练、validation、checkpoint 选择、test、绘图和打包 |
-| `evaluate_iicms.py` | 评价学习策略、固定动作和 RSSI 策略 |
+| `evaluate_iicms.py` | 评价学习策略、固定动作和 RSSI 策略，并逐 episode 输出进度 |
 | `evaluate_existing_runs.sh` | 对已有训练目录重新执行评价 |
 | `select_best_checkpoint.py` | 用固定 validation seeds 选择最佳 checkpoint |
 | `tune_rssi_thresholds.py` | 在 validation seeds 上校准 SC/DC-RSSI 门限 |
 | `run_baseline_suite.sh` | 运行固定模式、动态聚类和 RSSI 基线套件 |
 | `summarize_baseline_results.py` | 汇总基线 JSON 为 CSV/JSON |
-| `evaluate_ap_count_sweep.py` | 不同 AP 数量下的 zero-shot 扩展评价 |
+| `evaluate_ap_count_sweep.py` | 不同 AP 数量下的 zero-shot 扩展评价，实时转发子评价进度 |
 | `evaluate_backhaul_capacity_sweep.py` | 不同回程容量下的扩展评价 |
 | `plot_training_curves.py` | 绘制训练或 validation 多 seed 曲线 |
 | `plot_reward_convergence.py` | 由 `reward_proposed.npy` 绘制论文式 reward 收敛图 |
@@ -251,6 +252,8 @@ python evaluate_iicms.py --help
 3. 运行 `python -m unittest discover -s tests -v`；
 4. 提交 Pull Request；
 5. 维护者审查后合并到 `main`。
+
+仓库内部实现、数据流和修改约束见 [AGENTS.md](AGENTS.md)。
 
 公开仓库允许其他人查看、克隆、Fork 和提交 Pull Request，但不会自动授予
 直接写原仓库的权限。需要直接 push 的协作者，应由仓库所有者在

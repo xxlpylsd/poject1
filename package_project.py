@@ -28,7 +28,7 @@ def tracked_sources(root: Path) -> list[Path]:
             continue
         if any((part.startswith(EXCLUDED_PREFIXES) for part in relative.parts)):
             continue
-        if path.suffix in {'.py', '.sh', '.ps1'} or path.name in {'README.md', 'requirements.txt', 'channel.npz'}:
+        if path.suffix in {'.py', '.sh', '.ps1'} or path.name in {'README.md', 'AGENTS.md', 'requirements.txt', 'channel.npz'}:
             paths.append(path)
     return sorted(paths)
 

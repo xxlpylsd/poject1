@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import time
 from argparse import Namespace
 from pathlib import Path
 from utils.runtime_env import normalize_thread_environment
@@ -250,8 +251,10 @@ def main() -> None:
     mean_ue_speed = []
     scene_digests = []
     total_decisions = 0
+    evaluation_started = time.monotonic()
     for episode in range(args.episodes):
         seed = seeds[episode]
+        episode_step_start = len(step_sum_rates)
         episode_args = Namespace(**config)
         episode_args.seed = seed
         env.configure(episode_args)
@@ -303,6 +306,14 @@ def main() -> None:
                 if int(item['mode']) != 2:
                     size_counts[str(int(item['cluster_k']))] += 1.0
             total_decisions += env.num_agent
+        episode_sum_rates = np.asarray(step_sum_rates[episode_step_start:], dtype=float)
+        print(
+            f"[evaluate_iicms] episode {episode + 1}/{args.episodes} "
+            f"seed={seed} "
+            f"mean_sum_rate={float(np.mean(episode_sum_rates)):.2f} Mbps "
+            f"elapsed={time.monotonic() - evaluation_started:.1f}s",
+            flush=True,
+        )
     mode_share = mode_counts / max(1, total_decisions)
     size_total = max(1.0, sum(size_counts.values()))
     per_ue_se_samples = np.asarray(per_ue_rates, dtype=float) * 1000000.0 / float(env.env.bandwidth_hz)
