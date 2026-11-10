@@ -12,6 +12,7 @@
 |---|---|
 | `train_main.py` | 训练入口：构造环境、策略、Runner 和结果目录 |
 | `config.py` | 全部命令行参数及其默认值 |
+| `AGENTS.md` | 仓库逻辑、关键不变量、测试与 Pull Request 规则 |
 | `run_iicms_comparison.sh` / `.ps1` | 一键训练、validation、checkpoint 选择、test、绘图和打包 |
 | `evaluate_iicms.py` | 评价学习策略、固定动作和 RSSI 策略，并逐 episode 输出进度 |
 | `evaluate_existing_runs.sh` | 对已有训练目录重新执行评价 |
@@ -251,6 +252,8 @@ python evaluate_iicms.py --help
 3. 运行 `python -m unittest discover -s tests -v`；
 4. 提交 Pull Request；
 5. 维护者审查后合并到 `main`。
+
+仓库内部实现、数据流和修改约束见 [AGENTS.md](AGENTS.md)。
 
 公开仓库允许其他人查看、克隆、Fork 和提交 Pull Request，但不会自动授予
 直接写原仓库的权限。需要直接 push 的协作者，应由仓库所有者在
