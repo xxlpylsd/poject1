@@ -1,8 +1,8 @@
 # IICMS Mobility
 
 本项目实现簇化 Cell-Free 网络中的干扰协调模式选择与 AP 簇选择。
-
-
+当前主方法为 Controlled TF：共享 Transformer Actor、集中式 MLP Critic，
+以及模式条件化的离散 AP 子集动作头。
 
 ## 项目结构
 
@@ -160,19 +160,50 @@ r(t) = sum_k R_k(t)
 
 纯速率实验不对 QoS 施加训练惩罚；QoS 和 P05 只作为评价指标。
 
-### MAPPO 设置
+### 当前 MAPPO 策略设置
 
-| 参数 | MLP-native | Transformer-native |
+当前主对照是 Native shared MLP 与 Controlled TF。旧版 Native TF 不属于当前主方法。
+
+| 参数 | Native shared MLP | Controlled TF |
 |---|---:|---:|
+| 策略共享 | 是 | 是 |
 | Actor | MLP | Transformer |
-| Critic | MLP | Transformer |
+| Critic | MLP | MLP |
+| Actor 动作头 | `mlp_factorized` | `subset_conditional` |
 | Actor 学习率 | `2e-4` | `1e-4` |
 | Critic 学习率 | `1e-4` | `1e-4` |
-| 熵系数 | `0.005` | `0.010` |
-| Hidden size | 192 | 128 |
+| 熵系数 | `0.005` | `0.005` |
+| Actor hidden size | 192 | 128 |
+| Critic hidden size | 128 | 128 |
 | Transformer d_model | — | 64 |
 | Attention heads | — | 4 |
 | Transformer layers | — | 2 |
+| FFN multiplier | — | 4 |
+| Dropout | — | 0 |
+| Pooling | — | mean |
+| Positional encoding | — | 启用 |
+| Temporal context | `history_mean` | `history_mean` |
+
+Controlled TF 使用 4 帧历史。每帧包含 1 个 UE token 和 5 个候选 AP token，
+每个 token 为 7 维，因此 Actor 输入为 `24 × 7 = 168` 维。集中式 MLP Critic
+使用 30 个 UE 的联合观测，共 `30 × 168 = 5040` 维。
+
+动作采用 `subset_conditional`：
+
+```text
+协作模式：JT / CB / NC
+簇大小：2 / 3 / 4 / 5
+AP 子集：从每个 UE 当前最强的 5 个候选 AP 中选择
+```
+
+对应动作空间为：
+
+```text
+JT 的 26 个 AP 子集 + CB 的 26 个 AP 子集 + NC = 53 个合法联合动作
+```
+
+当前主实验固定使用 5 个候选 AP，不包含候选 AP 数量扩展或 anchored subset
+实验。
 
 共同训练设置：
 
@@ -185,6 +216,9 @@ r(t) = sum_k R_k(t)
 | Episode/rollout 长度 | 100 |
 | 最终训练预算 | 600k 环境步 |
 | 训练 seeds | 1–6 |
+| 折扣因子 γ | 0.99 |
+| GAE λ | 0.95 |
+| Max gradient norm | 10 |
 
 ### Validation、checkpoint 与 test
 
@@ -193,6 +227,9 @@ r(t) = sum_k R_k(t)
 | 训练中 validation | 每 25k 环境步 |
 | Validation episodes | 20 |
 | Validation seeds | 91000–91019 |
+| Validation horizon | 100 |
+| Plateau window | 5 |
+| Plateau tolerance | 0.5%/100k steps |
 | Checkpoint 指标 | `system_se` |
 | 每候选 checkpoint episodes | 20 |
 | 最终 test seeds | 93000–93019 |
