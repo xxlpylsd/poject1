@@ -6,12 +6,15 @@ from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
 import numpy as np
+import torch
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from evaluate_iicms import canonical_env_config, checkpoint_path, empirical_cdf, initial_state_digest, protocol_id, ranges_overlap, resolve_fixed_action, seed_range
+from config import get_config
 from envs.env_iicms_mobile import IICMSMobileDiscreteActionEnv
-from select_best_checkpoint import select_candidate
+from select_best_checkpoint import make_policy, select_candidate
+from train_main import parse_args
 
 def evaluation_args(seed: int) -> Namespace:
     return Namespace(num_aps=12, num_agents=6, map_size=1000.0, ap_min_distance=50.0, antennas_per_ap=4, channel_file=None, seed=seed, backhaul_lo=400000000.0, backhaul_hi=500000000.0, cluster_sizes='2,3,4,5', mobility='rwp', ue_speed=10.0, slot_dt=0.5, pathloss_model='legacy', csi_aging=0, reward_mode='mean_se', objective_horizon=100, rate_req_lo_mbps=40.0, rate_req_hi_mbps=40.0, min_ue_se_bps_hz=0.5, qos_penalty_weight=20.0, backhaul_jt_model='bottleneck', fronthaul_queue=1, fronthaul_buffer_s=0.5, reset_ues=1, cluster_action_mode='subset', obs_include_xy=1, obs_frames=4)
@@ -89,5 +92,28 @@ class EvaluationProtocolTest(unittest.TestCase):
         env_b.reset()
         np.testing.assert_array_equal(env_a.env.users_xy, env_b.env.users_xy)
         np.testing.assert_array_equal(env_a.env.aps_xy, env_b.env.aps_xy)
+
+    def test_checkpoint_selection_preserves_ap_token_count_with_neighbors(self):
+        args = parse_args(
+            [
+                '--num_agents', '6',
+                '--num_aps', '12',
+                '--cluster_sizes', '2,3,4,5',
+                '--cluster_action_mode', 'subset',
+                '--obs_include_xy', '1',
+                '--obs_frames', '2',
+                '--obs_neighbor_ues', '3',
+                '--obs_ap_competition', '1',
+                '--fronthaul_queue', '1',
+                '--actor_backbone', 'transformer',
+                '--joint_action_head', 'subset_conditional',
+            ],
+            get_config(),
+        )
+        env = IICMSMobileDiscreteActionEnv()
+        env.configure(args)
+        policy = make_policy(args, env, torch.device('cpu'))
+        self.assertEqual(args.joint_num_ap_tokens, 5)
+        self.assertEqual(policy.actor.act.tokens_per_frame, 9)
 if __name__ == '__main__':
     unittest.main()

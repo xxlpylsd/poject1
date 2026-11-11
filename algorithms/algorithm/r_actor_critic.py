@@ -111,7 +111,7 @@ class R_Actor(nn.Module):
                 if self.joint_head_type == 'mlp_factorized' and self.backbone_name != 'mlp':
                     raise ValueError('mlp_factorized requires the MLP actor')
                 head_cls = RelationalSubsetACTLayer if self.joint_head_type == 'relational_subset' else StructuredSubsetACTLayer
-                head_kwargs = dict(num_modes=num_modes, num_choices=num_choices, cluster_choice_ranks=ranks, cluster_choice_sizes=choice_sizes, num_ap_tokens=n_ap_tokens, use_orthogonal=self._use_orthogonal, gain=self._gain, valid_action_indices=valid_indices, conditional_modes=self.joint_head_type in {'subset_conditional', 'relational_subset', 'mlp_factorized'}, actor_temporal_context=str(getattr(args, 'actor_temporal_context', 'history_mean')), tokens_per_frame=1 + n_ap_tokens, score_from_tokens=self._score_ap_tokens)
+                head_kwargs = dict(num_modes=num_modes, num_choices=num_choices, cluster_choice_ranks=ranks, cluster_choice_sizes=choice_sizes, num_ap_tokens=n_ap_tokens, use_orthogonal=self._use_orthogonal, gain=self._gain, valid_action_indices=valid_indices, conditional_modes=self.joint_head_type in {'subset_conditional', 'relational_subset', 'mlp_factorized'}, actor_temporal_context=str(getattr(args, 'actor_temporal_context', 'history_mean')), tokens_per_frame=1 + int(getattr(args, 'obs_neighbor_ues', 0)) + n_ap_tokens, score_from_tokens=self._score_ap_tokens)
                 if head_cls is RelationalSubsetACTLayer:
                     head_kwargs['relation_dim'] = int(getattr(args, 'tf_relation_dim', 32))
                 self.act = head_cls(action_space, self.hidden_size, **head_kwargs)

@@ -378,7 +378,7 @@ class RelationalSubsetACTLayer(StructuredSubsetACTLayer):
 
     def _choice_values(self, x, tokens, context=None):
         current_frame = self._current_frame(tokens)
-        candidate_tokens = current_frame[:, 1:, :]
+        candidate_tokens = current_frame[:, -self.num_ap_tokens:, :]
         if candidate_tokens.size(1) != self.num_ap_tokens:
             raise ValueError('Relational AP head expects one current token per candidate AP')
         ue_token = current_frame[:, 0:1, :]

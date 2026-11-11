@@ -1,4 +1,3 @@
-"""IICMS mobility environment."""
 from __future__ import annotations
 import math
 from itertools import combinations
@@ -22,7 +21,7 @@ def encode_iicms_action(env: 'IICMSMobileEnvCore', mode: int, cluster_size: int,
 class IICMSMobileEnvCore(EnvCore):
     MODES = {'JT': 0, 'CB': 1, 'NC': 2}
 
-    def __init__(self, mobility: str='rwp', ue_speed: float=10.0, slot_dt: float=0.5, pathloss_model: str='legacy', csi_aging: bool=False, carrier_ghz: float=1.9, csi_block_slots: int=200, csi_pilot_slots: int=10, csi_slot_ms: float=1.0, size_options: Sequence[int]=(2, 3, 4, 5), reward_mode: str='mean_se', objective_horizon: int=100, reward_phi1: float=0.5, reward_phi2: float=1.0, rate_req_lo_mbps: float=40.0, rate_req_hi_mbps: float=40.0, min_ue_se_bps_hz: float=0.0, qos_penalty_weight: float=20.0, backhaul_jt_model: str='bottleneck', fronthaul_queue: int=0, fronthaul_buffer_s: float=1.0, ap_min_distance: float=50.0, reset_ues: bool=True, cluster_action_mode: str='topk', cluster_policy: str='dynamic', obs_include_xy: bool=False, obs_frames: int=1):
+    def __init__(self, mobility: str='rwp', ue_speed: float=10.0, slot_dt: float=0.5, pathloss_model: str='legacy', csi_aging: bool=False, carrier_ghz: float=1.9, csi_block_slots: int=200, csi_pilot_slots: int=10, csi_slot_ms: float=1.0, size_options: Sequence[int]=(2, 3, 4, 5), reward_mode: str='mean_se', objective_horizon: int=100, reward_phi1: float=0.5, reward_phi2: float=1.0, rate_req_lo_mbps: float=40.0, rate_req_hi_mbps: float=40.0, min_ue_se_bps_hz: float=0.0, qos_penalty_weight: float=20.0, backhaul_jt_model: str='bottleneck', fronthaul_queue: int=0, fronthaul_buffer_s: float=1.0, ap_min_distance: float=50.0, reset_ues: bool=True, cluster_action_mode: str='topk', cluster_policy: str='dynamic', obs_include_xy: bool=False, obs_frames: int=1, obs_neighbor_ues: int=0, obs_ap_competition: int=0):
         super().__init__()
         self.mobility = str(mobility)
         self.ue_speed = float(ue_speed)
@@ -49,6 +48,8 @@ class IICMSMobileEnvCore(EnvCore):
         self.reset_ues = bool(reset_ues)
         self.obs_include_xy = bool(obs_include_xy)
         self.obs_frames = max(1, int(obs_frames))
+        self.obs_neighbor_ues = max(0, int(obs_neighbor_ues))
+        self.obs_ap_competition = bool(obs_ap_competition)
         cluster_action_mode = str(cluster_action_mode).lower()
         if cluster_action_mode not in {'topk', 'subset'}:
             raise ValueError("cluster_action_mode must be 'topk' or 'subset'")
@@ -117,8 +118,16 @@ class IICMSMobileEnvCore(EnvCore):
         self.joint_action_cluster_choice.append(0)
         self.joint_action_cluster_ranks.append((0,))
         self.joint_valid_flat_indices = [int(mode) * self.joint_num_cluster_choices + choice for ((mode, _size), choice) in zip(self.joint_actions, self.joint_action_cluster_choice)]
-        self.obs_token_dim = (6 if self.obs_include_xy else 4) + (1 if self.fronthaul_queue else 0)
-        self.obs_tokens_per_frame = 1 + self.cluster_max
+        if self.obs_neighbor_ues >= self.agent_num:
+            raise ValueError('obs_neighbor_ues must be smaller than num_agents')
+        if self.obs_neighbor_ues and not (self.obs_include_xy and self.obs_ap_competition):
+            raise ValueError('obs_neighbor_ues requires obs_include_xy=1 and obs_ap_competition=1')
+        self.obs_token_dim = (
+            (6 if self.obs_include_xy else 4)
+            + (1 if self.fronthaul_queue else 0)
+            + (2 if self.obs_ap_competition else 0)
+        )
+        self.obs_tokens_per_frame = 1 + self.obs_neighbor_ues + self.cluster_max
         self.obs_frame_dim = self.obs_token_dim * self.obs_tokens_per_frame
         self.obs_dim = self.obs_frame_dim * self.obs_frames
         self.action_dim = [len(self.joint_actions)]
@@ -127,7 +136,7 @@ class IICMSMobileEnvCore(EnvCore):
         self.size_options = self._validate_size_options(sizes)
         self._rebuild_action_space()
 
-    def configure(self, num_aps: Optional[int]=None, num_agents: Optional[int]=None, map_size: Optional[float]=None, ap_min_distance: Optional[float]=None, antennas_per_ap: Optional[int]=None, channel_file: Optional[str]=None, seed: Optional[int]=None, backhaul_cap_range: Optional[Tuple[float, float]]=None, size_options: Optional[Sequence[int]]=None, mobility: Optional[str]=None, ue_speed: Optional[float]=None, slot_dt: Optional[float]=None, pathloss_model: Optional[str]=None, csi_aging: Optional[int]=None, carrier_ghz: Optional[float]=None, csi_block_slots: Optional[int]=None, csi_pilot_slots: Optional[int]=None, csi_slot_ms: Optional[float]=None, reward_mode: Optional[str]=None, objective_horizon: Optional[int]=None, reward_phi1: Optional[float]=None, reward_phi2: Optional[float]=None, rate_req_lo_mbps: Optional[float]=None, rate_req_hi_mbps: Optional[float]=None, min_ue_se_bps_hz: Optional[float]=None, qos_penalty_weight: Optional[float]=None, backhaul_jt_model: Optional[str]=None, fronthaul_queue: Optional[int]=None, fronthaul_buffer_s: Optional[float]=None, reset_ues: Optional[int]=None, cluster_action_mode: Optional[str]=None, cluster_policy: Optional[str]=None, obs_include_xy: Optional[int]=None, obs_frames: Optional[int]=None) -> None:
+    def configure(self, num_aps: Optional[int]=None, num_agents: Optional[int]=None, map_size: Optional[float]=None, ap_min_distance: Optional[float]=None, antennas_per_ap: Optional[int]=None, channel_file: Optional[str]=None, seed: Optional[int]=None, backhaul_cap_range: Optional[Tuple[float, float]]=None, size_options: Optional[Sequence[int]]=None, mobility: Optional[str]=None, ue_speed: Optional[float]=None, slot_dt: Optional[float]=None, pathloss_model: Optional[str]=None, csi_aging: Optional[int]=None, carrier_ghz: Optional[float]=None, csi_block_slots: Optional[int]=None, csi_pilot_slots: Optional[int]=None, csi_slot_ms: Optional[float]=None, reward_mode: Optional[str]=None, objective_horizon: Optional[int]=None, reward_phi1: Optional[float]=None, reward_phi2: Optional[float]=None, rate_req_lo_mbps: Optional[float]=None, rate_req_hi_mbps: Optional[float]=None, min_ue_se_bps_hz: Optional[float]=None, qos_penalty_weight: Optional[float]=None, backhaul_jt_model: Optional[str]=None, fronthaul_queue: Optional[int]=None, fronthaul_buffer_s: Optional[float]=None, reset_ues: Optional[int]=None, cluster_action_mode: Optional[str]=None, cluster_policy: Optional[str]=None, obs_include_xy: Optional[int]=None, obs_frames: Optional[int]=None, obs_neighbor_ues: Optional[int]=None, obs_ap_competition: Optional[int]=None) -> None:
         if mobility is not None:
             self.mobility = str(mobility)
         if ue_speed is not None:
@@ -186,6 +195,10 @@ class IICMSMobileEnvCore(EnvCore):
             self.obs_include_xy = bool(obs_include_xy)
         if obs_frames is not None:
             self.obs_frames = max(1, int(obs_frames))
+        if obs_neighbor_ues is not None:
+            self.obs_neighbor_ues = max(0, int(obs_neighbor_ues))
+        if obs_ap_competition is not None:
+            self.obs_ap_competition = bool(obs_ap_competition)
         if self.mobility not in {'static', 'rwp', 'random_walk'}:
             raise ValueError(f'Unknown mobility model: {self.mobility}')
         if self.pathloss_model not in {'legacy', 'classic'}:
@@ -560,6 +573,54 @@ class IICMSMobileEnvCore(EnvCore):
     def _observe_from_state(self, sinr: np.ndarray, ap_load: np.ndarray, effective_rate_bps: Optional[np.ndarray]=None, ap_scale: Optional[np.ndarray]=None, clusters: Optional[List[np.ndarray]]=None) -> List[np.ndarray]:
         n_aps = min(self.cluster_max, self.ap_num)
         order = self._candidate_ap_order()[:, :n_aps]
+        candidate_mask = None
+        candidate_count_token = None
+        candidate_demand_token = None
+        channel_correlation = None
+        candidate_overlap = None
+        neighbor_order = None
+        if self.obs_ap_competition or self.obs_neighbor_ues:
+            candidate_mask = np.zeros(
+                (self.agent_num, self.ap_num), dtype=bool
+            )
+            candidate_mask[np.arange(self.agent_num)[:, None], order] = True
+            candidate_counts_per_ap = candidate_mask.sum(axis=0)
+            candidate_demand_per_ap = candidate_mask.T @ (
+                self._rate_req_mbps * 1000000.0
+            )
+            candidate_count_token = np.clip(
+                candidate_counts_per_ap[order]
+                / float(max(1, self.agent_num)),
+                0.0,
+                1.0,
+            )
+            candidate_demand_token = np.clip(
+                candidate_demand_per_ap[order]
+                / np.maximum(self.backhaul_caps[order], 1.0),
+                0.0,
+                1.0,
+            )
+        if self.obs_neighbor_ues:
+            channel_norm = np.linalg.norm(self.mu, axis=1, keepdims=True)
+            channel_unit = self.mu / np.maximum(channel_norm, 1e-30)
+            channel_correlation = np.clip(
+                channel_unit @ channel_unit.T,
+                0.0,
+                1.0,
+            )
+            candidate_overlap = (
+                candidate_mask.astype(float)
+                @ candidate_mask.astype(float).T
+                / float(max(1, n_aps))
+            )
+            conflict_score = (
+                0.65 * candidate_overlap
+                + 0.35 * channel_correlation
+            )
+            np.fill_diagonal(conflict_score, -np.inf)
+            neighbor_order = np.argsort(
+                conflict_score, axis=1
+            )[:, -self.obs_neighbor_ues:][:, ::-1]
         top_strength = np.maximum(self.mu[np.arange(self.agent_num), order[:, 0]], 1e-30)
         top_mu = self.mu[np.arange(self.agent_num)[:, None], order]
         relative_gain = np.clip(10.0 * np.log10(np.maximum(top_mu, 1e-30) / top_strength[:, None]) / 30.0, -1.0, 0.0)
@@ -590,6 +651,20 @@ class IICMSMobileEnvCore(EnvCore):
         rate_token = np.clip(effective_rate_mbps / (2.5 * target_mbps), 0.0, 2.0)
         qos_gap = np.clip((effective_rate_mbps - target_mbps) / target_mbps, -1.0, 3.0)
         target_token = np.clip(target_mbps / 100.0, 0.0, 1.0)
+        previous_cluster_size = np.asarray([
+            len(cluster) if cluster is not None else 0
+            for cluster in self._previous_clusters
+        ], dtype=float)
+        previous_mode_token = np.clip(
+            (self._previous_mode.astype(float) + 1.0) / 3.0,
+            0.0,
+            1.0,
+        )
+        previous_cluster_token = np.clip(
+            previous_cluster_size / float(max(1, self.cluster_max)),
+            0.0,
+            1.0,
+        )
         queue_pressure = np.zeros(self.agent_num, dtype=float)
         if self.fronthaul_queue and clusters is not None:
             for (ue, cluster) in enumerate(clusters):
@@ -603,13 +678,60 @@ class IICMSMobileEnvCore(EnvCore):
                 self_token = np.concatenate((self_token, ue_xy_token[ue]))
             if self.fronthaul_queue:
                 self_token = np.concatenate((self_token, [queue_pressure[ue]]))
+            if self.obs_ap_competition:
+                self_token = np.concatenate((self_token, [0.0, 0.0]))
+            if self_token.size < self.obs_token_dim:
+                self_token = np.pad(
+                    self_token,
+                    (0, self.obs_token_dim - self_token.size),
+                )
             columns = [relative_gain[ue], load_ratio[ue], scale_token[ue], served[ue]]
             if self.obs_include_xy:
                 columns.extend([ap_xy_token[ue, :, 0], ap_xy_token[ue, :, 1]])
             if self.fronthaul_queue:
                 columns.append(queue_ratio[ue])
+            if self.obs_ap_competition:
+                columns.extend([
+                    candidate_count_token[ue],
+                    candidate_demand_token[ue],
+                ])
             ap_tokens = np.column_stack(columns)
-            observations.append(np.concatenate((self_token, ap_tokens.reshape(-1))).astype(np.float32))
+            neighbor_tokens = np.zeros(
+                (self.obs_neighbor_ues, self.obs_token_dim),
+                dtype=float,
+            )
+            if neighbor_order is not None:
+                for (index, other) in enumerate(neighbor_order[ue]):
+                    delta_xy = self.users_xy[other] - self.users_xy[ue]
+                    relative_xy = np.clip(
+                        delta_xy / max(0.5 * self.map_size, 1e-30),
+                        -1.0,
+                        1.0,
+                    )
+                    relative_distance = np.clip(
+                        float(np.linalg.norm(delta_xy)) / self.map_size,
+                        0.0,
+                        1.0,
+                    )
+                    values = np.asarray([
+                        relative_xy[0],
+                        relative_xy[1],
+                        relative_distance,
+                        channel_correlation[ue, other],
+                        candidate_overlap[ue, other],
+                        rate_token[other],
+                        qos_gap[other],
+                        previous_mode_token[other],
+                        previous_cluster_token[other],
+                    ], dtype=float)
+                    neighbor_tokens[index, :min(self.obs_token_dim, values.size)] = (
+                        values[:self.obs_token_dim]
+                    )
+            observations.append(np.concatenate((
+                self_token,
+                neighbor_tokens.reshape(-1),
+                ap_tokens.reshape(-1),
+            )).astype(np.float32))
         return observations
 
     def _stack_observation_history(self, current_observations: List[np.ndarray]) -> List[np.ndarray]:
@@ -679,7 +801,7 @@ class IICMSMobileEnvCore(EnvCore):
 
     def summary(self) -> Dict[str, object]:
         steps = max(1, self._t)
-        return {'steps': self._t, 'mobility': self.mobility, 'ue_speed_mps': self.ue_speed, 'speed_mean_mps': float(np.mean(self._speed)), 'speed_min_mps': float(np.min(self._speed)), 'speed_max_mps': float(np.max(self._speed)), 'slot_dt_s': self.slot_dt, 'displacement_per_step_m': self.ue_speed * self.slot_dt, 'pathloss_model': self.pathloss_model, 'csi_aging': self.csi_aging, 'rho2_mean': float(np.mean(self._rho2)), 'size_options': list(self.size_options), 'cluster_action_mode': self.cluster_action_mode, 'cluster_policy': self.cluster_policy, 'obs_include_xy': self.obs_include_xy, 'obs_frames': self.obs_frames, 'obs_token_dim': self.obs_token_dim, 'obs_tokens_per_frame': self.obs_tokens_per_frame, 'obs_frame_dim': self.obs_frame_dim, 'joint_num_cluster_choices': self.joint_num_cluster_choices, 'reward_mode': self.reward_mode, 'objective_horizon': self.objective_horizon, 'objective_horizon_seconds': self.objective_horizon * self.slot_dt, 'reward_phi1': self.reward_phi1, 'reward_phi2': self.reward_phi2, 'min_rate_requirement_mbps': float(np.mean(self._rate_req_mbps)), 'min_ue_se_bps_hz': self.min_ue_se_bps_hz, 'qos_penalty_weight': self.qos_penalty_weight, 'backhaul_jt_model': self.backhaul_jt_model, 'fronthaul_queue': int(self.fronthaul_queue), 'fronthaul_buffer_s': self.fronthaul_buffer_s, 'ap_min_distance_m': self.ap_min_distance, 'cluster_changes_per_ue_step': float(self.cluster_changes.sum() / (steps * self.agent_num)), 'overload_events_per_ue_step': float(self.overload_events.sum() / (steps * self.agent_num)), 'per_ue_cluster_changes': self.cluster_changes.tolist()}
+        return {'steps': self._t, 'mobility': self.mobility, 'ue_speed_mps': self.ue_speed, 'speed_mean_mps': float(np.mean(self._speed)), 'speed_min_mps': float(np.min(self._speed)), 'speed_max_mps': float(np.max(self._speed)), 'slot_dt_s': self.slot_dt, 'displacement_per_step_m': self.ue_speed * self.slot_dt, 'pathloss_model': self.pathloss_model, 'csi_aging': self.csi_aging, 'rho2_mean': float(np.mean(self._rho2)), 'size_options': list(self.size_options), 'cluster_action_mode': self.cluster_action_mode, 'cluster_policy': self.cluster_policy, 'obs_include_xy': self.obs_include_xy, 'obs_frames': self.obs_frames, 'obs_neighbor_ues': self.obs_neighbor_ues, 'obs_ap_competition': int(self.obs_ap_competition), 'obs_token_dim': self.obs_token_dim, 'obs_tokens_per_frame': self.obs_tokens_per_frame, 'obs_frame_dim': self.obs_frame_dim, 'joint_num_cluster_choices': self.joint_num_cluster_choices, 'reward_mode': self.reward_mode, 'objective_horizon': self.objective_horizon, 'objective_horizon_seconds': self.objective_horizon * self.slot_dt, 'reward_phi1': self.reward_phi1, 'reward_phi2': self.reward_phi2, 'min_rate_requirement_mbps': float(np.mean(self._rate_req_mbps)), 'min_ue_se_bps_hz': self.min_ue_se_bps_hz, 'qos_penalty_weight': self.qos_penalty_weight, 'backhaul_jt_model': self.backhaul_jt_model, 'fronthaul_queue': int(self.fronthaul_queue), 'fronthaul_buffer_s': self.fronthaul_buffer_s, 'ap_min_distance_m': self.ap_min_distance, 'cluster_changes_per_ue_step': float(self.cluster_changes.sum() / (steps * self.agent_num)), 'overload_events_per_ue_step': float(self.overload_events.sum() / (steps * self.agent_num)), 'per_ue_cluster_changes': self.cluster_changes.tolist()}
 
 class IICMSMobileDiscreteActionEnv:
 
@@ -705,7 +827,7 @@ class IICMSMobileDiscreteActionEnv:
         self.joint_cluster_choice_ranks = [list(ranks) for ranks in self.env.cluster_choice_ranks]
         self.joint_cluster_choice_sizes = list(self.env.cluster_choice_sizes)
         self.joint_action_cluster_choice = list(self.env.joint_action_cluster_choice)
-        self.joint_num_ap_tokens = int(self.env.obs_tokens_per_frame - 1)
+        self.joint_num_ap_tokens = int(self.env.cluster_max)
         self.signal_action_dim = np.asarray(self.env.action_dim, dtype=int)
         share_obs_dim = self.signal_obs_dim * self.num_agent
         self.action_space = [spaces.MultiDiscrete(self.signal_action_dim) for _ in range(self.num_agent)]
@@ -715,7 +837,7 @@ class IICMSMobileDiscreteActionEnv:
     def configure(self, all_args) -> None:
         sizes_raw = str(getattr(all_args, 'cluster_sizes', '3,4,5'))
         size_options = tuple((int(value.strip()) for value in sizes_raw.split(',') if value.strip()))
-        kwargs = {'num_aps': getattr(all_args, 'num_aps', None), 'num_agents': getattr(all_args, 'num_agents', None), 'map_size': getattr(all_args, 'map_size', None), 'ap_min_distance': getattr(all_args, 'ap_min_distance', None), 'antennas_per_ap': getattr(all_args, 'antennas_per_ap', None), 'channel_file': getattr(all_args, 'channel_file', None), 'seed': getattr(all_args, 'seed', None), 'backhaul_cap_range': (getattr(all_args, 'backhaul_lo', 400000000.0), getattr(all_args, 'backhaul_hi', 500000000.0)), 'size_options': size_options, 'mobility': getattr(all_args, 'mobility', None), 'ue_speed': getattr(all_args, 'ue_speed', None), 'slot_dt': getattr(all_args, 'slot_dt', None), 'pathloss_model': getattr(all_args, 'pathloss_model', None), 'csi_aging': getattr(all_args, 'csi_aging', None), 'carrier_ghz': getattr(all_args, 'carrier_ghz', None), 'csi_block_slots': getattr(all_args, 'csi_block_slots', None), 'csi_pilot_slots': getattr(all_args, 'csi_pilot_slots', None), 'csi_slot_ms': getattr(all_args, 'csi_slot_ms', None), 'reward_mode': getattr(all_args, 'reward_mode', None), 'objective_horizon': getattr(all_args, 'objective_horizon', None), 'reward_phi1': getattr(all_args, 'reward_phi1', None), 'reward_phi2': getattr(all_args, 'reward_phi2', None), 'rate_req_lo_mbps': getattr(all_args, 'rate_req_lo_mbps', None), 'rate_req_hi_mbps': getattr(all_args, 'rate_req_hi_mbps', None), 'min_ue_se_bps_hz': getattr(all_args, 'min_ue_se_bps_hz', None), 'qos_penalty_weight': getattr(all_args, 'qos_penalty_weight', None), 'backhaul_jt_model': getattr(all_args, 'backhaul_jt_model', None), 'fronthaul_queue': getattr(all_args, 'fronthaul_queue', None), 'fronthaul_buffer_s': getattr(all_args, 'fronthaul_buffer_s', None), 'reset_ues': getattr(all_args, 'reset_ues', None), 'cluster_action_mode': getattr(all_args, 'cluster_action_mode', None), 'cluster_policy': getattr(all_args, 'cluster_policy', None), 'obs_include_xy': getattr(all_args, 'obs_include_xy', None), 'obs_frames': getattr(all_args, 'obs_frames', None)}
+        kwargs = {'num_aps': getattr(all_args, 'num_aps', None), 'num_agents': getattr(all_args, 'num_agents', None), 'map_size': getattr(all_args, 'map_size', None), 'ap_min_distance': getattr(all_args, 'ap_min_distance', None), 'antennas_per_ap': getattr(all_args, 'antennas_per_ap', None), 'channel_file': getattr(all_args, 'channel_file', None), 'seed': getattr(all_args, 'seed', None), 'backhaul_cap_range': (getattr(all_args, 'backhaul_lo', 400000000.0), getattr(all_args, 'backhaul_hi', 500000000.0)), 'size_options': size_options, 'mobility': getattr(all_args, 'mobility', None), 'ue_speed': getattr(all_args, 'ue_speed', None), 'slot_dt': getattr(all_args, 'slot_dt', None), 'pathloss_model': getattr(all_args, 'pathloss_model', None), 'csi_aging': getattr(all_args, 'csi_aging', None), 'carrier_ghz': getattr(all_args, 'carrier_ghz', None), 'csi_block_slots': getattr(all_args, 'csi_block_slots', None), 'csi_pilot_slots': getattr(all_args, 'csi_pilot_slots', None), 'csi_slot_ms': getattr(all_args, 'csi_slot_ms', None), 'reward_mode': getattr(all_args, 'reward_mode', None), 'objective_horizon': getattr(all_args, 'objective_horizon', None), 'reward_phi1': getattr(all_args, 'reward_phi1', None), 'reward_phi2': getattr(all_args, 'reward_phi2', None), 'rate_req_lo_mbps': getattr(all_args, 'rate_req_lo_mbps', None), 'rate_req_hi_mbps': getattr(all_args, 'rate_req_hi_mbps', None), 'min_ue_se_bps_hz': getattr(all_args, 'min_ue_se_bps_hz', None), 'qos_penalty_weight': getattr(all_args, 'qos_penalty_weight', None), 'backhaul_jt_model': getattr(all_args, 'backhaul_jt_model', None), 'fronthaul_queue': getattr(all_args, 'fronthaul_queue', None), 'fronthaul_buffer_s': getattr(all_args, 'fronthaul_buffer_s', None), 'reset_ues': getattr(all_args, 'reset_ues', None), 'cluster_action_mode': getattr(all_args, 'cluster_action_mode', None), 'cluster_policy': getattr(all_args, 'cluster_policy', None), 'obs_include_xy': getattr(all_args, 'obs_include_xy', None), 'obs_frames': getattr(all_args, 'obs_frames', None), 'obs_neighbor_ues': getattr(all_args, 'obs_neighbor_ues', None), 'obs_ap_competition': getattr(all_args, 'obs_ap_competition', None)}
         self.env.configure(**{key: value for (key, value) in kwargs.items() if value is not None})
         self._refresh_and_build_spaces()
 

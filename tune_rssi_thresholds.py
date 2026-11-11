@@ -1,4 +1,3 @@
-"""Calibrate RSSI thresholds on validation seeds."""
 from __future__ import annotations
 import argparse
 import csv

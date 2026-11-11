@@ -1,4 +1,3 @@
-"""Evaluate learned policies and heuristic baselines."""
 from __future__ import annotations
 import argparse
 import hashlib
@@ -12,7 +11,7 @@ import numpy as np
 import torch
 from algorithms.algorithm.rMAPPOPolicy import RMAPPOPolicy
 from envs.env_iicms_mobile import IICMSMobileDiscreteActionEnv
-ENV_PROTOCOL_KEYS = ('env_name', 'scenario_name', 'num_agents', 'num_aps', 'antennas_per_ap', 'map_size', 'ap_min_distance', 'backhaul_lo', 'backhaul_hi', 'backhaul_jt_model', 'fronthaul_queue', 'fronthaul_buffer_s', 'cluster_sizes', 'cluster_action_mode', 'cluster_policy', 'mobility', 'ue_speed', 'slot_dt', 'csi_aging', 'carrier_ghz', 'csi_block_slots', 'csi_pilot_slots', 'csi_slot_ms', 'pathloss_model', 'obs_include_xy', 'obs_frames', 'objective_horizon', 'rate_req_lo_mbps', 'rate_req_hi_mbps', 'min_ue_se_bps_hz', 'qos_penalty_weight', 'reward_mode', 'reward_phi1', 'reward_phi2', 'joint_action_head')
+ENV_PROTOCOL_KEYS = ('env_name', 'scenario_name', 'num_agents', 'num_aps', 'antennas_per_ap', 'map_size', 'ap_min_distance', 'backhaul_lo', 'backhaul_hi', 'backhaul_jt_model', 'fronthaul_queue', 'fronthaul_buffer_s', 'cluster_sizes', 'cluster_action_mode', 'cluster_policy', 'mobility', 'ue_speed', 'slot_dt', 'csi_aging', 'carrier_ghz', 'csi_block_slots', 'csi_pilot_slots', 'csi_slot_ms', 'pathloss_model', 'obs_include_xy', 'obs_frames', 'obs_neighbor_ues', 'obs_ap_competition', 'objective_horizon', 'rate_req_lo_mbps', 'rate_req_hi_mbps', 'min_ue_se_bps_hz', 'qos_penalty_weight', 'reward_mode', 'reward_phi1', 'reward_phi2', 'joint_action_head')
 
 def encode_action(env, action: np.ndarray) -> np.ndarray:
     action_index = int(np.asarray(action).reshape(-1)[0])
@@ -193,7 +192,7 @@ def main() -> None:
     all_args.joint_cluster_choice_ranks = [list(ranks) for ranks in env.env.cluster_choice_ranks]
     all_args.joint_cluster_choice_sizes = list(env.env.cluster_choice_sizes)
     all_args.joint_action_cluster_choice = list(env.env.joint_action_cluster_choice)
-    all_args.joint_num_ap_tokens = int(env.obs_tokens_per_frame - 1)
+    all_args.joint_num_ap_tokens = int(env.joint_num_ap_tokens)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     separate_policy = bool(config.get('original_mappo', False)) or not bool(config.get('share_policy', True))
     policy = None

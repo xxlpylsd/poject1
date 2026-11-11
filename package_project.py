@@ -8,8 +8,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
-EXCLUDED_PARTS = {'__pycache__', 'results', 'logs_iicms', 'review_bundles', 'release_bundles', 'tmp', 'analysis_outputs', '_github_upload'}
-EXCLUDED_PREFIXES = ('results_eval_',)
+EXCLUDED_PARTS = {'__pycache__', '.git', 'results', 'logs_iicms', 'review_bundles', 'release_bundles', 'tmp', 'analysis_outputs', '结果图', '_github_upload'}
+EXCLUDED_PREFIXES = ('results_eval_', 'logs_iicms')
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -49,6 +49,8 @@ def included_project_files(root: Path) -> list[Path]:
         if any((part.startswith(EXCLUDED_PREFIXES) for part in relative.parts)):
             continue
         if path.suffix == '.pyc':
+            continue
+        if path.suffix == '.zip':
             continue
         if relative.parts[:2] == ('screening', 'results'):
             continue

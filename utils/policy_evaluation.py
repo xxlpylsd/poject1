@@ -1,4 +1,3 @@
-"""Shared policy evaluation and validation logging."""
 from __future__ import annotations
 import csv
 import json

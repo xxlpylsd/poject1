@@ -2,11 +2,11 @@
 
 ## Purpose
 
-This repository trains and evaluates interference-coordination mode selection
-for a clustered cell-free network. Each UE selects JT, CB, or NC, a cluster
-size, and an AP subset. MAPPO is the core algorithm.
+Train and evaluate interference-coordination mode selection in a clustered
+cell-free network. Each UE selects JT, CB, or NC and an AP subset. MAPPO is the
+core algorithm.
 
-The public repository is:
+Public repository:
 
 ```text
 https://github.com/xxlpylsd/poject1
@@ -14,139 +14,119 @@ https://github.com/xxlpylsd/poject1
 
 ## Execution Flow
 
-1. `train_main.py` parses `config.py`, creates train/eval environments, resolves
-   observation and action metadata, writes provenance, and starts a Runner.
+1. `train_main.py` parses `config.py`, builds environments and policies, writes
+   provenance, and starts a Runner.
 2. `envs/env_wrappers.py` creates Dummy or Subprocess vector environments.
-3. `runner/shared/env_runner.py` is the main shared-policy MAPPO loop.
-   `runner/separated/env_runner.py` supports one policy per UE.
-4. Each rollout step records observations, actions, log-probabilities, rewards,
-   values, masks, and RNN state in the replay buffer.
-5. `algorithms/algorithm/r_mappo.py` computes GAE returns and performs PPO
-   updates.
-6. `utils/policy_evaluation.py` runs deterministic fixed-seed validation and
-   writes `validation_curve.csv`, `validation_history.json`, and
+3. `runner/shared/env_runner.py` is the main shared-policy MAPPO loop;
+   `runner/separated/env_runner.py` supports independent UE policies.
+4. Rollouts record observations, joint actions, log-probabilities, rewards,
+   values, masks, and RNN state.
+5. `algorithms/algorithm/r_mappo.py` computes GAE returns and PPO updates.
+6. `utils/policy_evaluation.py` runs fixed-seed validation and writes
+   `validation_curve.csv`, `validation_history.json`, and
    `validation_convergence.json`.
-7. `select_best_checkpoint.py` evaluates snapshots and installs the selected
-   pair as `actor_best.pt` / `critic_best.pt`.
-8. `evaluate_iicms.py` evaluates learned policies or heuristic baselines on
-   fixed test seeds.
-9. Plotting and packaging scripts consume the saved CSV, JSON, NPZ, and model
-   artifacts.
+7. `select_best_checkpoint.py` installs the selected model as
+   `actor_best.pt` / `critic_best.pt` while preserving final weights.
+8. `evaluate_iicms.py` evaluates learned policies and heuristic baselines.
+9. Plot and packaging scripts consume generated CSV, JSON, NPZ, and model files.
 
-## Key Source Map
+## Source Map
 
 | Path | Responsibility |
 |---|---|
 | `config.py` | CLI parameters and defaults |
 | `train_main.py` | Training entry point and provenance |
-| `run_iicms_comparison.sh` / `.ps1` | End-to-end experiment orchestration |
-| `algorithms/algorithm/r_mappo.py` | PPO/GAE update |
+| `run_contention_600k.sh` | Current main MLP-vs-TF experiment |
+| `resume_contention_600k.sh` | Resume after an interrupted run |
+| `run_iicms_comparison.sh` / `.ps1` | Configurable end-to-end workflow |
+| `algorithms/algorithm/r_mappo.py` | GAE and PPO update |
 | `algorithms/algorithm/rMAPPOPolicy.py` | Actor/critic wrapper |
-| `algorithms/algorithm/r_actor_critic.py` | Actor/critic assembly |
+| `algorithms/algorithm/r_actor_critic.py` | Network assembly |
 | `algorithms/utils/act.py` | Joint-action distributions and masks |
 | `algorithms/utils/mlp.py` | MLP backbone |
 | `algorithms/utils/transformer.py` | Transformer backbone |
-| `envs/env_iicms_mobile.py` | Main mobility environment |
+| `envs/env_iicms_mobile.py` | Main mobility and radio environment |
 | `envs/env_core.py` | Channel and rate model |
 | `runner/shared/` | Shared-policy MAPPO loop |
 | `runner/separated/` | Independent-policy MAPPO loop |
-| `utils/policy_evaluation.py` | Shared validation evaluator |
+| `utils/policy_evaluation.py` | Validation evaluator |
 | `utils/shared_buffer.py` | Shared-policy replay buffer |
 | `utils/separated_buffer.py` | Independent-policy replay buffer |
-| `evaluate_iicms.py` | Final policy and baseline evaluation |
+| `evaluate_iicms.py` | Policy and baseline evaluation |
 | `select_best_checkpoint.py` | Validation checkpoint selection |
 | `tune_rssi_thresholds.py` | RSSI threshold calibration |
-| `run_baseline_suite.sh` | Full heuristic baseline suite |
-| `plot_*.py` | Training, validation, reward, and CDF figures |
-| `package_project.py` | Source manifest and release archives |
-| `package_results.py` | Review-result bundles |
+| `run_baseline_suite.sh` | Heuristic baseline suite |
+| `plot_*.py` | Training, reward, and CDF figures |
+| `package_project.py` | Source manifest and local archives |
+| `package_results.py` | Result bundles |
 | `tests/` | Unit and protocol tests |
 
 ## Modeling Invariants
 
 - 30 APs, 30 UEs, 4 antennas per AP, 20 MHz bandwidth, 1.9 GHz carrier.
-- AP placement is random in a 1 km x 1 km area with at least 50 m spacing.
-- UE mobility uses RWP at 15 m/s with a 0.5 s decision interval.
-- Shadowing is enabled; CSI aging is disabled in the main experiments.
-- Backhaul capacity is 550-650 Mbps per AP with bottleneck JT accounting.
+- APs are placed in 1 km x 1 km with at least 50 m spacing.
+- RWP mobility uses 15 m/s and a 0.5 s decision interval.
+- Shadowing is enabled; CSI aging is disabled in the main experiment.
+- Backhaul is 550-650 Mbps per AP with bottleneck JT accounting.
 - The finite fronthaul queue is 0.5 s at the AP service rate.
-- The full action space has 53 valid joint actions over JT/CB/NC and L=2..5.
-- Observations contain four frames of one UE token and five AP tokens.
-- Actor observation size is 168; centralized critic state size is 5040.
-- The main reward is `team_rate`, the system sum rate in Mbps.
-- A zero QoS weight means pure-rate training; P05 and QoS remain diagnostics.
+- The action space has 53 valid joint actions over JT/CB/NC and L=2..5.
+- Main observations contain four frames of 1 self UE, 3 competing neighbors,
+  and 5 candidate AP tokens.
+- Each token is 9-dimensional, so actor input is 324 and centralized critic
+  input is 30 x 324 = 9720.
+- The main reward is `team_rate` in Mbps.
+- QoS weight is zero in pure-rate training; P05 and QoS are diagnostics.
 
 ## Evaluation Invariants
 
 - Validation seeds: `91000-91019`.
-- Hyperparameter validation seeds: `92000-92019`.
+- Hyperparameter-validation seeds: `92000-92019`.
 - Final test seeds: `93000-93019`.
-- Do not overlap checkpoint selection, tuning, and test seed panels.
-- Training validation uses 20 deterministic episodes every 25k steps.
+- Checkpoint selection, tuning, and final testing must use disjoint seeds.
+- Training validation runs 20 deterministic episodes every 25k steps.
 - Checkpoint selection uses 20 deterministic episodes.
-- Pure-rate checkpoint selection uses `system_se`; never use QoS-first
-  selection unless a QoS penalty is part of the training objective.
-- Report deterministic execution as the primary policy result.
-- Report stochastic execution separately.
-- Never compare curves from different seed panels or different environment
-  configurations as if they were the same experiment.
+- Pure-rate checkpoint selection uses `system_se`, not a QoS-first objective.
+- Deterministic execution is the primary policy result; stochastic execution is
+  reported separately.
+- Never compare runs from different seed panels or environment settings as the
+  same experiment.
 
 ## Artifact Rules
 
-- `results/` contains generated run data; do not modify it by hand.
-- Model weights and raw `reward_proposed.npy` files stay out of normal commits.
+- `results/`, `analysis_outputs/`, figures, logs, archives, and model weights
+  are generated artifacts and stay out of Git.
 - Raw reward plotting requires `--source raw`; `curve.csv` is not a substitute.
-- Checkpoint selection replaces `actor.pt` and `critic.pt` with the selected
-  model while preserving `actor_final.pt` and `critic_final.pt`.
-- Keep `config.json`, `source_sha256.json`, and test protocol IDs with results.
-- Plot scripts must preserve the exact metric and execution-mode label.
-- Do not silently mix deterministic and stochastic results.
+- Preserve `config.json`, `source_sha256.json`, and protocol identifiers with
+  experiment outputs.
+- Plot scripts must retain the exact metric and execution-mode label.
+- Do not mix deterministic and stochastic results silently.
 
 ## Required Checks
 
-Run from the repository root:
+From the repository root:
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-Before any training change, also run a short smoke experiment and inspect:
-
-```text
-logs/curve.csv
-logs/validation_curve.csv
-checkpoint_selection.json
-evaluation_deterministic/run1.json
-```
+Before a training-related change, also run a short smoke experiment and inspect
+`logs/curve.csv`, `logs/validation_curve.csv`,
+`checkpoint_selection.json`, and `evaluation_deterministic/run1.json`.
 
 ## Contribution Workflow
 
-Changes to the shared repository should use a branch and Pull Request.
-
-Suggested branch names:
-
-```text
-feature/<short-name>
-fix/<short-name>
-docs/<short-name>
-```
-
-Workflow:
-
-1. Branch from the current `main`.
-2. Make focused changes.
+1. Branch from current `main`.
+2. Make one focused change.
 3. Run the full test suite.
 4. Commit with a clear message.
-5. Push the branch.
-6. Open a Pull Request against `main`.
-7. Merge only after tests pass and the change is reviewed.
+5. Push the branch and open a Pull Request.
+6. Merge after review and passing tests.
 
-Do not mix unrelated experiments, large generated artifacts, and source edits in
-one Pull Request.
+Do not combine unrelated source changes with generated artifacts.
 
 ## Permission Model
 
-The repository is public, so anyone can view, clone, fork, and open a Pull
-Request. Only the owner and explicitly added collaborators with write access
-can push to the original repository. The repository currently has no declared
-license; adding a reuse license is a separate owner decision.
+The repository is public: anyone may view, clone, fork, and open a Pull
+Request. Direct writes require ownership or collaborator permission. The
+repository currently has no declared license; licensing is a separate owner
+decision.

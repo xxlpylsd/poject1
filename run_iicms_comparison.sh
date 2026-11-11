@@ -24,6 +24,8 @@ CLUSTER_ACTION_MODE="${CLUSTER_ACTION_MODE:-subset}"
 CSI_AGING="${CSI_AGING:-0}"
 OBS_INCLUDE_XY="${OBS_INCLUDE_XY:-1}"
 OBS_FRAMES="${OBS_FRAMES:-4}"
+OBS_NEIGHBOR_UES="${OBS_NEIGHBOR_UES:-0}"
+OBS_AP_COMPETITION="${OBS_AP_COMPETITION:-0}"
 REWARD_MODE="${REWARD_MODE:-mean_se}"
 SHARED_LR="${LR:-1e-4}"
 SHARED_CRITIC_LR="${CRITIC_LR:-1e-4}"
@@ -87,8 +89,9 @@ SEED_LIST="${SEEDS// /}"
 SEEDS="${SEED_LIST//,/ }"
 if [[ "$ARCH_PROFILE" != "controlled" &&
       "$ARCH_PROFILE" != "native" &&
-      "$ARCH_PROFILE" != "direct" ]]; then
-  echo "[architecture] ARCH_PROFILE must be controlled, native, or direct" >&2
+      "$ARCH_PROFILE" != "direct" &&
+      "$ARCH_PROFILE" != "main" ]]; then
+  echo "[architecture] ARCH_PROFILE must be controlled, native, direct, or main" >&2
   exit 2
 fi
 echo "[architecture] profile=${ARCH_PROFILE}"
@@ -214,6 +217,8 @@ common=(
   --csi_aging "$CSI_AGING"
   --obs_include_xy "$OBS_INCLUDE_XY"
   --obs_frames "$OBS_FRAMES"
+  --obs_neighbor_ues "$OBS_NEIGHBOR_UES"
+  --obs_ap_competition "$OBS_AP_COMPETITION"
   --cluster_sizes "$CLUSTER_SIZES"
   --cluster_action_mode "$CLUSTER_ACTION_MODE"
   --reward_mode "$REWARD_MODE"
@@ -279,7 +284,8 @@ for seed in $SEEDS; do
       --seed "$seed"
       --experiment_name "${TAG}_mlp_s${seed}"
     )
-    if [[ "$ARCH_PROFILE" == "native" ]]; then
+    if [[ "$ARCH_PROFILE" == "native" ||
+          "$ARCH_PROFILE" == "main" ]]; then
       mlp+=(
         --disable_actor_token_norm
         --joint_action_head mlp_factorized

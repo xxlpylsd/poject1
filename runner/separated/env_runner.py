@@ -1,4 +1,3 @@
-"""Independent-policy MAPPO runner."""
 import time
 import os
 import csv

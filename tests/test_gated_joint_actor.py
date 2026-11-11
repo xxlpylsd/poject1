@@ -123,6 +123,60 @@ class GatedJointActorTest(unittest.TestCase):
             self.assertEqual(tuple(tokens.shape), (3, 24, 64))
             self.assertEqual(tuple(joint.shape), (3, 53))
 
+    def test_actor_supports_neighbor_ue_and_ap_competition_tokens(self):
+        from itertools import combinations
+        ranks = [
+            list(choice)
+            for size in (2, 3, 4, 5)
+            for choice in combinations(range(5), size)
+        ]
+        sizes = [
+            size
+            for size in (2, 3, 4, 5)
+            for _choice in combinations(range(5), size)
+        ]
+        obs_space = spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(324,),
+            dtype=np.float32,
+        )
+        obs = torch.randn(3, 324)
+        masks = torch.ones(3, 1)
+        rnn = torch.zeros(3, 1, 1)
+        args = actor_args('transformer')
+        args.actor_token_dim = 9
+        args.obs_neighbor_ues = 3
+        args.joint_action_head = 'subset_conditional'
+        args.joint_num_cluster_choices = 26
+        args.joint_cluster_choice_ranks = ranks
+        args.joint_cluster_choice_sizes = sizes
+        args.joint_num_ap_tokens = 5
+        args.joint_num_actions = 53
+        args.joint_valid_action_indices = (
+            list(range(26)) + list(range(26, 52)) + [52]
+        )
+        actor = R_Actor(
+            args,
+            obs_space,
+            spaces.MultiDiscrete([53]),
+        )
+        actor.eval()
+        with torch.no_grad():
+            (actions, log_probs, _) = actor(
+                obs,
+                rnn,
+                masks,
+                deterministic=False,
+            )
+            (pooled, tokens) = actor._encode_actor(obs)
+            joint = actor.act.joint_logits(pooled, tokens=tokens)
+        self.assertEqual(actor.act.tokens_per_frame, 9)
+        self.assertEqual(tuple(actions.shape), (3, 1))
+        self.assertEqual(tuple(log_probs.shape), (3, 1))
+        self.assertEqual(tuple(tokens.shape), (3, 36, 64))
+        self.assertEqual(tuple(joint.shape), (3, 53))
+
     def test_joint_actor_respects_available_action_mask(self):
         actor = R_Actor(actor_args('transformer'), self.obs_space, self.action_space)
         actor.eval()

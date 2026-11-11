@@ -1,4 +1,3 @@
-"""Plot training and validation curves."""
 from __future__ import annotations
 import argparse
 import csv

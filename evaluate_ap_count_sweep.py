@@ -15,7 +15,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
-FAMILY_LABELS = {'mlp': 'MLP-factorized (new)', 'old_mlp': 'MLP-flat (old)', 'tf': 'TF-native'}
+FAMILY_LABELS = {'mlp': 'Native shared MLP', 'tf': 'Controlled TF'}
 BASELINE_LABELS = {'dc_rssi': 'DC-RSSI', 'sc_rssi': 'SC-RSSI', 'dc_cb_l5': 'DC-CB-L5', 'sc_cb_l5': 'SC-CB-L5', 'dc_jt_l2': 'DC-JT-L2', 'sc_jt_l3': 'SC-JT-L3', 'dc_nc': 'DC-NC', 'sc_nc': 'SC-NC'}
 DEFAULT_BASELINES = ','.join(BASELINE_LABELS)
 
@@ -42,7 +42,7 @@ def parse_str_list(value: str) -> list[str]:
     return [item.strip() for item in str(value).split(',') if item.strip()]
 
 def run_dir_for_family(root: Path, tag: str, family: str, seed: int) -> Path:
-    suffix = 'mlp' if family in {'mlp', 'old_mlp'} else 'tf_actor'
+    suffix = 'mlp' if family == 'mlp' else 'tf_actor'
     return root / f'{tag}_{suffix}_s{seed}' / 'run1'
 
 def find_result_json(directory: Path) -> Path:
@@ -145,7 +145,7 @@ def write_csv(path: Path, rows: list[dict]) -> None:
         writer.writerows(rows)
 
 def plot_sweep(aggregate: list[dict], ap_counts: list[int], output_path: Path) -> None:
-    strategies = sorted({row['strategy'] for row in aggregate}, key=lambda value: (0 if value == 'mlp' else 1 if value == 'old_mlp' else 2 if value == 'tf' else 3, value))
+    strategies = sorted({row['strategy'] for row in aggregate}, key=lambda value: (0 if value == 'mlp' else 1 if value == 'tf' else 2, value))
     colors = plt.get_cmap('tab10').colors
     markers = ('o', 's', '^', 'v', 'D', 'P', 'X', '*', '<', '>')
     styles = {strategy: (colors[index % len(colors)], markers[index % len(markers)]) for (index, strategy) in enumerate(strategies)}
@@ -180,13 +180,11 @@ def plot_sweep(aggregate: list[dict], ap_counts: list[int], output_path: Path) -
 def main() -> None:
     parser = argparse.ArgumentParser(description='Evaluate fixed M=30 policy checkpoints at several AP counts without retraining.')
     parser.add_argument('--result-root', default='results/IICMSMobility/PureMobility/mappo')
-    parser.add_argument('--mlp-tag', default='fronthaul_queue_mlp_factorized_rate_400k')
-    parser.add_argument('--tf-tag', default='fronthaul_queue_native_rate_400k')
-    parser.add_argument('--old-mlp-tag', default='fronthaul_queue_native_rate_400k')
+    parser.add_argument('--mlp-tag', default='rate_contention_neighbor3_600000')
+    parser.add_argument('--tf-tag', default='rate_contention_neighbor3_600000')
     parser.add_argument('--mlp-seeds', default='1,2,3,4,5,6')
     parser.add_argument('--tf-seeds', default='1,2,3,4,5,6')
-    parser.add_argument('--old-mlp-seeds', default='1,2,3,4,5,6')
-    parser.add_argument('--families', default='mlp,old_mlp,tf', help='learned families: mlp, old_mlp, tf')
+    parser.add_argument('--families', default='mlp,tf', help='learned families: mlp, tf')
     parser.add_argument('--ap-counts', default='10,20,30,40,50')
     parser.add_argument('--baselines', default=DEFAULT_BASELINES, help="comma-separated baselines or 'none'")
     parser.add_argument('--rssi-thresholds-env', default='', help='selected_rssi_thresholds.env; defaults to the calibration file under the first MLP run')
@@ -207,15 +205,15 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     ap_counts = parse_int_list(args.ap_counts, 'AP counts')
     families = parse_str_list(args.families)
-    unknown_families = set(families) - {'mlp', 'old_mlp', 'tf'}
+    unknown_families = set(families) - {'mlp', 'tf'}
     if unknown_families:
         parser.error(f'Unknown families: {sorted(unknown_families)}')
     baselines = [] if args.baselines.strip().lower() == 'none' else parse_str_list(args.baselines)
     unknown_baselines = set(baselines) - set(BASELINE_SPECS)
     if unknown_baselines:
         parser.error(f'Unknown baselines: {sorted(unknown_baselines)}')
-    seed_lists = {'mlp': parse_int_list(args.mlp_seeds, 'MLP seeds'), 'old_mlp': parse_int_list(args.old_mlp_seeds, 'old MLP seeds'), 'tf': parse_int_list(args.tf_seeds, 'TF seeds')}
-    tags = {'mlp': args.mlp_tag, 'old_mlp': args.old_mlp_tag, 'tf': args.tf_tag}
+    seed_lists = {'mlp': parse_int_list(args.mlp_seeds, 'MLP seeds'), 'tf': parse_int_list(args.tf_seeds, 'TF seeds')}
+    tags = {'mlp': args.mlp_tag, 'tf': args.tf_tag}
     family_runs = {family: {seed: run_dir_for_family(result_root, tags[family], family, seed) for seed in seed_lists[family]} for family in families}
     for (family, runs) in family_runs.items():
         for (seed, run_dir) in runs.items():

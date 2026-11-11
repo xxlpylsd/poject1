@@ -10,8 +10,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
-LABELS = {'mlp': 'MLP-factorized (new)', 'old_mlp': 'MLP-flat (old)', 'tf': 'TF-native', 'dc_rssi': 'DC-RSSI', 'sc_rssi': 'SC-RSSI', 'dc_cb_l5': 'DC-CB-L5', 'sc_cb_l5': 'SC-CB-L5', 'dc_jt_l2': 'DC-JT-L2', 'sc_jt_l3': 'SC-JT-L3', 'dc_nc': 'DC-NC', 'sc_nc': 'SC-NC'}
-STYLES = {'mlp': ('#2563EB', 'o'), 'old_mlp': ('#7C3AED', 'D'), 'tf': ('#EA580C', 's'), 'dc_rssi': ('#16A34A', '^'), 'dc_cb_l5': ('#0891B2', 'v')}
+LABELS = {'mlp': 'Native shared MLP', 'tf': 'Controlled TF', 'dc_rssi': 'DC-RSSI', 'sc_rssi': 'SC-RSSI', 'dc_cb_l5': 'DC-CB-L5', 'sc_cb_l5': 'SC-CB-L5', 'dc_jt_l2': 'DC-JT-L2', 'sc_jt_l3': 'SC-JT-L3', 'dc_nc': 'DC-NC', 'sc_nc': 'SC-NC'}
+STYLES = {'mlp': ('#2563EB', 'o'), 'tf': ('#EA580C', 's'), 'dc_rssi': ('#16A34A', '^'), 'dc_cb_l5': ('#0891B2', 'v')}
 
 def read_rows(path: Path) -> list[dict]:
     with path.open('r', newline='', encoding='utf-8-sig') as stream:
@@ -81,7 +81,7 @@ def setup_axis(axis, ap_counts: list[int], title: str, ylabel: str):
 
 def plot_main_comparison(rows: list[dict], out_path: Path) -> None:
     grouped = grouped_rows(rows)
-    strategies = [strategy for strategy in ('mlp', 'old_mlp', 'tf', 'dc_rssi', 'dc_cb_l5') if any((name == strategy for (name, _ap) in grouped))]
+    strategies = [strategy for strategy in ('mlp', 'tf', 'dc_rssi', 'dc_cb_l5') if any((name == strategy for (name, _ap) in grouped))]
     ap_counts = sorted({int(row['ap_count']) for row in rows})
     panels = (('sum_rate_mbps', 1.0, 'Total sum rate (Mbps)'), ('rate_per_ap_mbps', 1.0, 'Sum rate per AP (Mbps/AP)'), ('per_ue_rate_p05_mbps', 1.0, 'Per-UE rate P05 (Mbps)'), ('qos_violation_rate', 100.0, 'QoS violation rate (%)'))
     (fig, axes) = plt.subplots(2, 2, figsize=(12.2, 7.8), dpi=180)

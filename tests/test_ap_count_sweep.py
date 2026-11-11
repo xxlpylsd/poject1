@@ -37,10 +37,10 @@ class ApCountSweepTest(unittest.TestCase):
         high_ap_shape = env.observation_space[0].shape
         self.assertEqual(low_ap_shape, high_ap_shape)
 
-    def test_old_and_new_mlp_use_mlp_run_suffix(self):
+    def test_learning_families_use_expected_run_suffixes(self):
         root = Path('results')
-        self.assertEqual(run_dir_for_family(root, 'old_tag', 'old_mlp', 2), root / 'old_tag_mlp_s2' / 'run1')
-        self.assertEqual(run_dir_for_family(root, 'new_tag', 'mlp', 2), root / 'new_tag_mlp_s2' / 'run1')
+        self.assertEqual(run_dir_for_family(root, 'tag', 'mlp', 2), root / 'tag_mlp_s2' / 'run1')
+        self.assertEqual(run_dir_for_family(root, 'tag', 'tf', 2), root / 'tag_tf_actor_s2' / 'run1')
 
     def test_tf_mlp_paired_gain_tracks_ap_count(self):
         rows = []

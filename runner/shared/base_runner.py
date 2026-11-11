@@ -35,7 +35,6 @@ class Runner(object):
         self.recurrent_N = self.all_args.recurrent_N
         self.save_interval = self.all_args.save_interval
         self.use_eval = self.all_args.use_eval
-        self.eval_interval = self.all_args.eval_interval
         self.validation_interval_steps = int(self.all_args.validation_interval_steps)
         self.validation_episodes = int(self.all_args.validation_episodes)
         self.validation_seed_start = int(self.all_args.validation_seed_start)

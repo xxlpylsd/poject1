@@ -101,6 +101,57 @@ class IICMSMobilityTest(unittest.TestCase):
         self.assertIn('fronthaul_queue_ratio', infos[0])
         self.assertIn('fronthaul_drop_ratio', infos[0])
 
+    def test_contention_aware_neighbor_and_ap_observations(self):
+        env = make_env(
+            sizes=(2, 3, 4, 5),
+            cluster_action_mode='subset',
+            obs_include_xy=1,
+            obs_frames=4,
+            obs_neighbor_ues=3,
+            obs_ap_competition=1,
+            fronthaul_queue=1,
+            fronthaul_buffer_s=0.5,
+        )
+        self.assertEqual(env.obs_neighbor_ues, 3)
+        self.assertTrue(env.obs_ap_competition)
+        self.assertEqual(env.obs_token_dim, 9)
+        self.assertEqual(env.obs_tokens_per_frame, 9)
+        self.assertEqual(env.obs_frame_dim, 81)
+        self.assertEqual(env.obs_dim, 324)
+        action = encode_iicms_action(env, 0, 2)
+        (obs, _, _, _) = env.step([
+            action.copy() for _ in range(env.agent_num)
+        ])
+        frames = np.stack(obs).reshape(
+            env.agent_num,
+            env.obs_frames,
+            env.obs_tokens_per_frame,
+            env.obs_token_dim,
+        )
+        self.assertTrue(np.all(np.isfinite(frames)))
+        self_token = frames[:, -1, 0, :]
+        neighbor_tokens = frames[:, -1, 1:4, :]
+        ap_tokens = frames[:, -1, 4:, :]
+        self.assertEqual(tuple(self_token.shape), (env.agent_num, 9))
+        self.assertEqual(
+            tuple(neighbor_tokens.shape),
+            (env.agent_num, 3, 9),
+        )
+        self.assertEqual(tuple(ap_tokens.shape), (env.agent_num, 5, 9))
+        self.assertTrue(np.all(neighbor_tokens[:, :, 3:5] >= 0.0))
+        self.assertTrue(np.all(neighbor_tokens[:, :, 3:5] <= 1.0))
+        self.assertTrue(np.all(ap_tokens[:, :, 7:9] >= 0.0))
+        self.assertTrue(np.all(ap_tokens[:, :, 7:9] <= 1.0))
+
+    def test_contention_observation_requires_xy_and_competition(self):
+        with self.assertRaisesRegex(ValueError, 'obs_neighbor_ues requires'):
+            make_env(
+                sizes=(2, 3, 4, 5),
+                obs_neighbor_ues=3,
+                obs_include_xy=0,
+                obs_ap_competition=0,
+            )
+
     def test_finite_fronthaul_queue_builds_overflows_and_drains(self):
         env = make_env(sizes=(2, 3), slot_dt=0.5, fronthaul_queue=1, fronthaul_buffer_s=1.0)
         env.backhaul_caps = np.full(env.ap_num, 10.0)

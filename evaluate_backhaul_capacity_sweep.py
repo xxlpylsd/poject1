@@ -99,7 +99,7 @@ def plot_all_capacities(aggregate: list[dict], capacities: list[float], output_p
     plt.close(fig)
 
 def plot_main_comparison(aggregate: list[dict], capacities: list[float], output_path: Path) -> None:
-    strategies = [name for name in ('mlp', 'old_mlp', 'tf', 'dc_rssi', 'dc_cb_l5') if any((row['strategy'] == name for row in aggregate))]
+    strategies = [name for name in ('mlp', 'tf', 'dc_rssi', 'dc_cb_l5') if any((row['strategy'] == name for row in aggregate))]
     panels = (('sum_rate_mbps', 1.0, 'Total sum rate (Mbps)'), ('per_ue_rate_p05_mbps', 1.0, 'Per-UE rate P05 (Mbps)'), ('qos_violation_rate', 100.0, 'QoS violation rate (%)'), ('overload_ratio', 100.0, 'Backhaul overload ratio (%)'))
     (fig, axes) = plt.subplots(2, 2, figsize=(12.2, 7.8), dpi=180)
     for (axis, (metric, scale, ylabel)) in zip(axes.ravel(), panels):
@@ -146,13 +146,11 @@ def plot_paper_figure5_style(aggregate: list[dict], capacities: list[float], out
 def main() -> None:
     parser = argparse.ArgumentParser(description='Evaluate fixed checkpoints under different average AP backhaul capacities without retraining.')
     parser.add_argument('--result-root', default='results/IICMSMobility/PureMobility/mappo')
-    parser.add_argument('--mlp-tag', default='fronthaul_queue_mlp_factorized_rate_400k')
-    parser.add_argument('--old-mlp-tag', default='fronthaul_queue_native_rate_400k')
-    parser.add_argument('--tf-tag', default='fronthaul_queue_native_rate_400k')
+    parser.add_argument('--mlp-tag', default='rate_contention_neighbor3_600000')
+    parser.add_argument('--tf-tag', default='rate_contention_neighbor3_600000')
     parser.add_argument('--mlp-seeds', default='1,2,3,4,5,6')
-    parser.add_argument('--old-mlp-seeds', default='1,2,3,4,5,6')
     parser.add_argument('--tf-seeds', default='1,2,3,4,5,6')
-    parser.add_argument('--families', default='mlp,old_mlp,tf')
+    parser.add_argument('--families', default='mlp,tf')
     parser.add_argument('--capacities-gbps', default=DEFAULT_CAPACITIES_GBPS, help='average per-AP backhaul capacity values in Gbps')
     parser.add_argument('--variation-gbps', type=float, default=0.05, help='half-width of the per-AP capacity variation; the reference 0.6 Gbps point then matches 550-650 Mbps')
     parser.add_argument('--reference-capacity-gbps', type=float, default=0.6)
@@ -172,7 +170,7 @@ def main() -> None:
         parser.error('--variation-gbps must be positive')
     capacities = parse_float_list(args.capacities_gbps, 'capacities')
     families = parse_str_list(args.families)
-    unknown_families = set(families) - {'mlp', 'old_mlp', 'tf'}
+    unknown_families = set(families) - {'mlp', 'tf'}
     if unknown_families:
         parser.error(f'Unknown families: {sorted(unknown_families)}')
     baselines = [] if args.baselines.strip().lower() == 'none' else parse_str_list(args.baselines)
@@ -182,8 +180,8 @@ def main() -> None:
     result_root = (project_root / args.result_root).resolve()
     output_dir = (project_root / args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    seed_lists = {'mlp': parse_int_list(args.mlp_seeds, 'MLP seeds'), 'old_mlp': parse_int_list(args.old_mlp_seeds, 'old MLP seeds'), 'tf': parse_int_list(args.tf_seeds, 'TF seeds')}
-    tags = {'mlp': args.mlp_tag, 'old_mlp': args.old_mlp_tag, 'tf': args.tf_tag}
+    seed_lists = {'mlp': parse_int_list(args.mlp_seeds, 'MLP seeds'), 'tf': parse_int_list(args.tf_seeds, 'TF seeds')}
+    tags = {'mlp': args.mlp_tag, 'tf': args.tf_tag}
     family_runs = {family: {seed: run_dir_for_family(result_root, tags[family], family, seed) for seed in seed_lists[family]} for family in families}
     for (family, runs) in family_runs.items():
         for (seed, run_dir) in runs.items():

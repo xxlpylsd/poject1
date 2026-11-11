@@ -1,4 +1,3 @@
-"""IICMS mobility MAPPO training entry point."""
 import sys
 import os
 import socket

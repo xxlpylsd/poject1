@@ -1,4 +1,3 @@
-"""Select checkpoints on fixed validation episodes."""
 from __future__ import annotations
 import argparse
 import json
@@ -39,7 +38,7 @@ def make_policy(all_args: Namespace, env, device: torch.device):
     all_args.joint_cluster_choice_ranks = [list(ranks) for ranks in env.env.cluster_choice_ranks]
     all_args.joint_cluster_choice_sizes = list(env.env.cluster_choice_sizes)
     all_args.joint_action_cluster_choice = list(env.env.joint_action_cluster_choice)
-    all_args.joint_num_ap_tokens = env.obs_tokens_per_frame - 1
+    all_args.joint_num_ap_tokens = env.joint_num_ap_tokens
     return RMAPPOPolicy(all_args, env.observation_space[0], env.share_observation_space[0], env.action_space[0], device=device)
 
 def evaluate_candidate(policy, env, all_args: Namespace, actor_path: Path, critic_path: Path, seeds: list[int], horizon: int, qos_weight: float) -> dict:

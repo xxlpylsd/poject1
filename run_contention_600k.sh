@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+TRAIN_SEED="${1:-1}"
+TRAIN_STEPS="${2:-600000}"
+CONTENTION_ALGOS="${CONTENTION_ALGOS:-both}"
+
+if [[ ! "$TRAIN_SEED" =~ ^[0-9]+$ || ! "$TRAIN_STEPS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "Usage: bash run_contention_600k.sh [seed] [steps]" >&2
+  echo "Example: bash run_contention_600k.sh 1 600000" >&2
+  exit 2
+fi
+
+TAG="rate_contention_neighbor3_${TRAIN_STEPS}"
+LOG_DIR="logs_iicms_contention3"
+mkdir -p "$LOG_DIR"
+
+echo "[contention experiment]"
+echo "  seed=${TRAIN_SEED}"
+echo "  steps=${TRAIN_STEPS}"
+echo "  algorithms=${CONTENTION_ALGOS}"
+echo "  observations=1 self UE + 3 neighbor UEs + 5 candidate APs"
+
+SEEDS="$TRAIN_SEED" \
+STEPS="$TRAIN_STEPS" \
+EPISODE_LENGTH=100 \
+NENV=16 \
+VEC_ENV=subproc \
+ALGOS="$CONTENTION_ALGOS" \
+ARCH_PROFILE=main \
+JOINT_ACTION_HEAD=subset_conditional \
+CLUSTER_SIZES=2,3,4,5 \
+CLUSTER_ACTION_MODE=subset \
+OBS_INCLUDE_XY=1 \
+OBS_FRAMES=4 \
+OBS_NEIGHBOR_UES=3 \
+OBS_AP_COMPETITION=1 \
+MLP_HIDDEN=192 \
+MLP_LR=2e-4 \
+MLP_CRITIC_LR=1e-4 \
+MLP_ENTROPY_COEF=0.005 \
+MLP_CRITIC_BACKBONE=mlp \
+TF_CRITIC_BACKBONE=mlp \
+TF_HIDDEN=128 \
+TF_D_MODEL=64 \
+TF_LR=1e-4 \
+TF_CRITIC_LR=1e-4 \
+TF_ENTROPY_COEF=0.005 \
+TF_POOL=mean \
+TF_USE_CLS=0 \
+REWARD_MODE=team_rate \
+QOS_PENALTY_WEIGHT=0 \
+MIN_UE_SE_BPS_HZ=0 \
+BACKHAUL_LO=5.5e8 \
+BACKHAUL_HI=6.5e8 \
+FRONTHAUL_QUEUE=1 \
+FRONTHAUL_BUFFER_S=0.5 \
+TRAINING_VALIDATION=1 \
+VALIDATION_INTERVAL_STEPS=25000 \
+VALIDATION_EPISODES=20 \
+VALIDATION_SEED=91000 \
+VALIDATION_HORIZON=100 \
+VALIDATION_WINDOW=5 \
+VALIDATION_PLATEAU_RELATIVE_GAIN=0.005 \
+SAVE_INTERVAL=10 \
+SAVE_CHECKPOINT_SNAPSHOTS=1 \
+SELECT_BEST_CHECKPOINT=1 \
+BEST_CHECKPOINT_METRIC=system_se \
+BEST_CHECKPOINT_EPISODES=20 \
+BEST_CHECKPOINT_SEED=91000 \
+AUTO_EVAL=1 \
+EVAL_PHASE=test \
+EVAL_SEED=93000 \
+EVAL_EPISODES=20 \
+EVAL_HORIZON=100 \
+EVAL_BASELINES=1 \
+PLOT_RESULTS=1 \
+PLOT_METRIC=rate \
+PACKAGE_RESULTS=1 \
+LOG_DIR="$LOG_DIR" \
+TAG="$TAG" \
+bash run_iicms_comparison.sh

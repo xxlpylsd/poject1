@@ -35,6 +35,8 @@ param(
     [string]$BaselineLabel = "fixed_cb_l5",
     [int]$ObsIncludeXy = 1,
     [int]$ObsFrames = 4,
+    [int]$ObsNeighborUes = 0,
+    [int]$ObsApCompetition = 0,
     [double]$QosPenaltyWeight = 20.0,
     [double]$MinUeSeBpsHz = 0.0,
     [double]$Speed = 15.0,
@@ -43,7 +45,7 @@ param(
     [string]$Python = "D:\Anaconda\envs\DL\python.exe",
     [string]$Tag = "iicms_mobility",
     [string]$JointActionHead = "subset_conditional",
-    [ValidateSet("controlled", "native", "direct")]
+    [ValidateSet("controlled", "native", "direct", "main")]
     [string]$ArchitectureProfile = "controlled",
     [int]$TfRelationDim = 32,
     [string]$ClusterActionMode = "subset",
@@ -107,6 +109,8 @@ $common = @(
     "--csi_aging", "0",
     "--obs_include_xy", "$ObsIncludeXy",
     "--obs_frames", "$ObsFrames",
+    "--obs_neighbor_ues", "$ObsNeighborUes",
+    "--obs_ap_competition", "$ObsApCompetition",
     "--cluster_sizes", "2,3,4,5",
     "--cluster_action_mode", $ClusterActionMode,
     "--reward_mode", $RewardMode,
@@ -169,7 +173,7 @@ foreach ($seed in $Seeds) {
             "--seed", "$seed",
             "--experiment_name", "${Tag}_mlp_s$seed"
         )
-        if ($ArchitectureProfile -eq "native") {
+    if ($ArchitectureProfile -eq "native" -or $ArchitectureProfile -eq "main") {
             $mlp += @(
                 "--disable_actor_token_norm",
                 "--joint_action_head", "mlp_factorized"

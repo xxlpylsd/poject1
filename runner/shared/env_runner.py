@@ -1,4 +1,3 @@
-"""Shared-policy MAPPO runner."""
 import time
 import csv
 import json

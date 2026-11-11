@@ -1,4 +1,3 @@
-"""Plot reward convergence from raw training rewards."""
 from __future__ import annotations
 import argparse
 import csv

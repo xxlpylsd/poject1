@@ -11,9 +11,16 @@ __pycache__/
 *.key
 *.pem
 
-# Generated review archives
+# Generated experiment data
+results/
+analysis_outputs/
+结果图/
+logs_iicms*/
 review_bundles/
+release_bundles/
+_github_upload/
 
-# Operating-system files
+# Archives and OS files
+*.zip
 .DS_Store
 Thumbs.db
