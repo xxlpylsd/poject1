@@ -1,12 +1,4 @@
-# IICMS Mobility
 
-簇化 Cell-Free 网络中的干扰协调模式选择与 AP 簇选择。
-当前主实验使用竞争感知观测的 Controlled TF：共享 Transformer Actor、
-集中式 MLP Critic 和 `subset_conditional` AP 子集动作头；主要对照为
-Native shared MLP。
-
-仓库只保存源码、测试、配置和默认信道数据。训练结果、模型权重、图片、
-日志和压缩包均不进入 Git。
 
 ## 文件说明
 
