@@ -1,12 +1,11 @@
-
-
 ## 文件说明
 
 | 文件或目录 | 作用 |
 |---|---|
 | `train_main.py` | 训练入口，创建环境、策略、Runner 和运行目录 |
 | `config.py` | 命令行参数及默认值 |
-| `run_contention_600k.sh` | 当前主实验：同一种子训练 MLP 与 TF，并完成验证、选模和测试 |
+| `run_contention_600k.sh` | Linux/WSL 当前主实验：同一种子训练 MLP 与 TF，并完成验证、选模和测试 |
+| `run_contention_600k.ps1` | Windows PowerShell 下的当前主实验入口 |
 | `resume_contention_600k.sh` | 中断后复用已有 MLP，继续 checkpoint 选择或 TF 训练 |
 | `run_iicms_comparison.sh` / `.ps1` | 可配置的完整训练与评价流程 |
 | `evaluate_iicms.py` | 评价学习策略及固定动作、RSSI 基线 |
@@ -22,6 +21,7 @@
 | `package_results.py` | 打包实验结果 |
 | `channel.npz` | 默认信道与场景数据 |
 | `requirements.txt` | Python 依赖 |
+| `figures/` | 最终 AP、前传、CDF 和训练曲线展示图 |
 | `AGENTS.md` | 数据流、建模不变量、测试和协作规则 |
 
 ## 核心代码
@@ -73,8 +73,6 @@
 AP 从每个 UE 当前最强的 5 个候选中选择。完整动作空间为
 `26 (JT) + 26 (CB) + 1 (NC) = 53` 个合法联合动作。
 
-
-
 ### 回程、前传与奖励
 
 | 参数 | 设置 |
@@ -93,7 +91,7 @@ AP 从每个 UE 当前最强的 5 个候选中选择。完整动作空间为
 
 ### 策略
 
-| 参数 |MLP | TF |
+| 参数 | MLP | TF |
 |---|---:|---:|
 | 策略共享 | 是 | 是 |
 | Actor | MLP | Transformer |
@@ -116,7 +114,7 @@ AP 从每个 UE 当前最强的 5 个候选中选择。完整动作空间为
 | PPO epochs | 5 |
 | Mini-batch 数 | 1 |
 | Clip | 0.2 |
-| 并行训练环境 | 16 |
+| 并行训练环境 | Linux 16；Windows 默认顺序执行 |
 | Episode / rollout 长度 | 100 |
 | 训练预算 | 600k 环境步 |
 | 训练 seeds | 1–6 |
@@ -143,16 +141,106 @@ AP 从每个 UE 当前最强的 5 个候选中选择。完整动作空间为
 验证、门限调参和最终测试使用互不重叠的种子集合。训练日志和 validation
 曲线用于判断收敛；最终性能不能与训练曲线直接按数值比较。
 
-## 运行
+## 本地 VS Code 运行
 
-安装依赖并运行测试：
+本地运行不需要 AutoDL。Windows、Linux、macOS 和 WSL 均可运行；有
+NVIDIA GPU 时会自动使用 CUDA，没有 GPU 时自动回退到 CPU。
+
+### 1. 获取代码
 
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/xxlpylsd/poject1.git
+cd poject1
+```
+
+也可以在 VS Code 中执行 `Git: Clone`，然后打开仓库目录。
+
+### 2. 创建 Python 环境
+
+建议使用 Python 3.9–3.11。Windows PowerShell：
+
+```powershell
+py -3.11 -m venv .venv
+Set-ExecutionPolicy -Scope Process Bypass
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+Linux、macOS 或 WSL：
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+需要 GPU 时，先确认 PyTorch 能识别显卡：
+
+```bash
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
+### 3. 运行测试
+
+在仓库根目录执行：
+
+```bash
 python -m unittest discover -s tests -v
 ```
 
-主实验脚本只接收种子和训练步数：
+全套测试不要求 GPU，正常情况下应全部通过。
+
+### 4. Windows 短测
+
+Windows 没有 `fork`，程序会自动把向量环境切换为串行 `dummy` 模式。
+先运行 800 步 CPU 冒烟测试：
+
+```powershell
+.\run_contention_600k.ps1 -Seed 1 -Smoke
+```
+
+短测会依次完成一次 MLP 和 TF 的 rollout 与 PPO 更新。GPU 冒烟测试可去掉
+CPU 回退：
+
+```powershell
+.\run_contention_600k.ps1 -Seed 1 -Smoke -Cpu:$false
+```
+
+### 5. Windows 正式训练
+
+同一种子训练 MLP 和 TF：
+
+```powershell
+.\run_contention_600k.ps1 -Seed 1 -Steps 600000 -Envs 4
+```
+
+只训练其中一个模型：
+
+```powershell
+.\run_contention_600k.ps1 -Seed 1 -Steps 600000 -Algos mlp
+.\run_contention_600k.ps1 -Seed 1 -Steps 600000 -Algos tf
+```
+
+强制使用 CPU：
+
+```powershell
+.\run_contention_600k.ps1 -Seed 1 -Steps 600000 -Cpu
+```
+
+如果使用其他 Python 环境，可通过 `-Python` 指定解释器：
+
+```powershell
+.\run_contention_600k.ps1 -Seed 1 -Python "C:\path\to\python.exe"
+```
+
+Windows 的 `dummy` 环境会顺序执行多个 rollout 环境，速度慢于 Linux。
+需要与服务器接近的并行速度时，建议在 VS Code 中连接 WSL。
+
+### 6. Linux、macOS 或 WSL 正式训练
+
+当前主实验脚本只接收种子和训练步数：
 
 ```bash
 bash run_contention_600k.sh 1 600000
@@ -166,16 +254,50 @@ for seed in 2 3 4 5 6; do
 done
 ```
 
-中断后复用已有 MLP：
+该脚本在 Linux 下默认使用 `subproc` 并行环境。中断后如需复用已完成的 MLP：
 
 ```bash
 bash resume_contention_600k.sh 1 600000
 ```
 
-参数说明：
+### 7. 单独测试已有模型
+
+训练完成后，默认最佳 checkpoint 位于：
+
+```text
+results/IICMSMobility/PureMobility/mappo/<实验名>_s<种子>/run1/models/
+```
+
+确定性测试示例：
+
+```bash
+python evaluate_iicms.py \
+  --run_dir results/IICMSMobility/PureMobility/mappo/rate_contention_neighbor3_600000_tf_actor_s1/run1 \
+  --seed_start 93000 \
+  --episodes 20 \
+  --horizon 100 \
+  --phase test \
+  --checkpoint best \
+  --out results/manual_eval_tf_s1_deterministic
+```
+
+随机执行测试需要在同一命令中加入 `--stochastic`。测试种子必须与
+validation/checkpoint 选择种子保持独立。
+
+## 参数与结果位置
+
+查看完整参数：
 
 ```bash
 python train_main.py --help
 python evaluate_iicms.py --help
 ```
 
+默认结果目录：
+
+```text
+results/IICMSMobility/PureMobility/mappo/<实验名>_s<种子>/run1/
+```
+
+其中包含训练曲线、validation、checkpoint 选择、确定性/随机测试和模型权重。
+这些实验输出已被 `.gitignore` 排除，不会误提交到 GitHub。

@@ -36,7 +36,7 @@ https://github.com/xxlpylsd/poject1
 |---|---|
 | `config.py` | CLI parameters and defaults |
 | `train_main.py` | Training entry point and provenance |
-| `run_contention_600k.sh` | Current main MLP-vs-TF experiment |
+| `run_contention_600k.sh` / `.ps1` | Current main MLP-vs-TF experiment on Linux/Windows |
 | `resume_contention_600k.sh` | Resume after an interrupted run |
 | `run_iicms_comparison.sh` / `.ps1` | Configurable end-to-end workflow |
 | `algorithms/algorithm/r_mappo.py` | GAE and PPO update |
