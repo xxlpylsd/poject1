@@ -73,29 +73,7 @@
 AP 从每个 UE 当前最强的 5 个候选中选择。完整动作空间为
 `26 (JT) + 26 (CB) + 1 (NC) = 53` 个合法联合动作。
 
-### 观测
 
-主实验开启邻接 UE 与 AP 竞争信息，每帧结构为：
-
-```text
-1 个自身 UE + 3 个竞争邻接 UE + 5 个候选 AP = 9 个 token
-```
-
-每帧 9 个 token、每个 token 9 维，共使用 4 帧：
-
-```text
-Actor 输入  = 4 × 9 × 9 = 324
-Critic 输入 = 30 × 324 = 9720
-```
-
-对应参数：
-
-```text
-obs_include_xy = 1
-obs_frames = 4
-obs_neighbor_ues = 3
-obs_ap_competition = 1
-```
 
 ### 回程、前传与奖励
 
@@ -115,12 +93,11 @@ obs_ap_competition = 1
 
 ### 策略
 
-| 参数 | Native shared MLP | Controlled TF |
+| 参数 |MLP | TF |
 |---|---:|---:|
 | 策略共享 | 是 | 是 |
 | Actor | MLP | Transformer |
 | Critic | MLP | MLP |
-| Actor 动作头 | `mlp_factorized` | `subset_conditional` |
 | Actor 学习率 | `2e-4` | `1e-4` |
 | Critic 学习率 | `1e-4` | `1e-4` |
 | 熵系数 | `0.005` | `0.005` |
@@ -202,13 +179,3 @@ python train_main.py --help
 python evaluate_iicms.py --help
 ```
 
-## 协作
-
-公开仓库地址：
-
-```text
-https://github.com/xxlpylsd/poject1
-```
-
-任何人都可以 Fork、修改并提交 Pull Request。原仓库只有 owner 和已被授予
-写权限的 collaborator 可以直接 push。具体流程见 `AGENTS.md`。
