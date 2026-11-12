@@ -142,8 +142,7 @@ AP 从每个 UE 当前最强的 5 个候选中选择。完整动作空间为
 
 ## 本地 VS Code 运行
 
-本地运行不需要 AutoDL。Windows、Linux、macOS 和 WSL 均可运行；有
-NVIDIA GPU 时会自动使用 CUDA，没有 GPU 时自动回退到 CPU。
+有NVIDIA GPU 时会自动使用 CUDA，没有 GPU 时自动回退到 CPU。
 
 ### 1. 获取代码
 
@@ -298,5 +297,4 @@ python evaluate_iicms.py --help
 results/IICMSMobility/PureMobility/mappo/<实验名>_s<种子>/run1/
 ```
 
-其中包含训练曲线、validation、checkpoint 选择、确定性/随机测试和模型权重。
-这些实验输出已被 `.gitignore` 排除，不会误提交到 GitHub。
+
