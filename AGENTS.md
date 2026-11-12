@@ -9,7 +9,7 @@ core algorithm.
 Public repository:
 
 ```text
-https://github.com/xxlpylsd/poject1
+https://github.com/xxlpylsd/project1
 ```
 
 ## Execution Flow

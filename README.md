@@ -149,8 +149,8 @@ NVIDIA GPU 时会自动使用 CUDA，没有 GPU 时自动回退到 CPU。
 ### 1. 获取代码
 
 ```bash
-git clone https://github.com/xxlpylsd/poject1.git
-cd poject1
+git clone https://github.com/xxlpylsd/project1.git
+cd project1
 ```
 
 也可以在 VS Code 中执行 `Git: Clone`，然后打开仓库目录。
